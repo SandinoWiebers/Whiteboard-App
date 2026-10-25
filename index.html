@@ -904,16 +904,18 @@
   }
   function buildLink(folder, name) {
     const f = parseFolder(folder || ""); if (!f) return "";
-    // Direct pad naar het bestand; ?web=1 opent Office-bestanden in Office voor het web.
-    const file = encodeURI(f.path + "/" + name).replace(/#/g, "%23");
-    return f.origin + file + (/\.pdf$/i.test(name) ? "" : "?web=1");
+    const file = f.path + "/" + name;
+    // PDF: direct pad. Office-bestanden: Doc.aspx met embedview, de vorm die SharePoint binnen een app toont.
+    if (/\.pdf$/i.test(name)) return f.origin + encodeURI(file).replace(/#/g, "%23");
+    return f.origin + f.site + "/_layouts/15/Doc.aspx?sourcedoc=" + encodeURIComponent(file) +
+           "&file=" + encodeURIComponent(name) + "&action=embedview";
   }
   // Koppelt lege gebieden, en maakt koppelingen die de app eerder zelf maakte opnieuw
   // (bijvoorbeeld na het wijzigen van de documentmap of de oude linkvorm).
   function autoLinkAll() {
     let n = 0; const b = st.cur; if (!b || !b.docFolder) return 0;
     b.hotspots.forEach((h) => {
-      const mine = h.auto && (!h.url || h.autoLinked || /_layouts\/15\/Doc\.aspx\?sourcedoc=%2F/i.test(h.url));
+      const mine = h.auto && (!h.url || h.autoLinked || /\?web=1$/i.test(h.url));
       if ((!h.url || mine) && looksLikeFile(h.name)) {
         const l = buildLink(b.docFolder, h.name);
         if (l && l !== h.url) { h.url = l; h.autoLinked = true; n++; }
