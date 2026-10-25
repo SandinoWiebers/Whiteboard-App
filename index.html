@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard Converter 1.4</title>
+<title>Whiteboard Converter 1.5</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
 <style>
   :root {
@@ -297,7 +297,7 @@
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.4</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.5</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -779,13 +779,18 @@
   $("closeViewer").addEventListener("click", () => setViewer(false));
   $("reopen").addEventListener("click", () => setViewer(true));
 
+  // Alleen de waarde van 'action' aanpassen en de rest van de link letterlijk laten staan
+  // (URLSearchParams zou spaties als '+' schrijven, wat SharePoint niet begrijpt).
   function docUrl(raw, m) {
     try {
       const u = new URL(raw);
-      if (/\.aspx$/i.test(u.pathname) || u.searchParams.has("sourcedoc")) {
-        u.searchParams.set("action", m === "edit" ? "edit" : "embedview");
-      }
-      return u.toString();
+      if (!(/\.aspx$/i.test(u.pathname) || u.searchParams.has("sourcedoc"))) return raw;
+      const act = m === "edit" ? "edit" : "embedview";
+      const [base, hash = ""] = raw.split("#");
+      const out = /[?&]action=[^&]*/i.test(base)
+        ? base.replace(/([?&]action=)[^&]*/i, "$1" + act)
+        : base + (base.includes("?") ? "&" : "?") + "action=" + act;
+      return out + (hash ? "#" + hash : "");
     } catch (e) { return raw; }
   }
   function loadDoc(raw, title) {
