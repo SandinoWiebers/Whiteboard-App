@@ -3,41 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard + Document</title>
+<title>Whiteboard Converter</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
 <style>
   :root {
-    --bg: #f5f5f5;
-    --surface: #ffffff;
-    --line: #e0e0e0;
-    --text: #242424;
-    --muted: #616161;
-    --accent: #5b5fc7;
-    --accent-soft: #e8ebfa;
-    --warn-bg: #fff4ce;
-    --warn-text: #5c4400;
+    --bg: #f0f0f0; --surface: #ffffff; --line: #e0e0e0; --text: #242424; --muted: #616161;
+    --accent: #5b5fc7; --accent-soft: #e8ebfa; --danger: #c4314b;
+    --warn-bg: #fff4ce; --warn-text: #5c4400;
+    --word: #185abd; --excel: #107c41; --ppt: #c43e1c; --pdf: #b30b00; --other: #5b5fc7;
     color-scheme: light;
   }
   :root[data-theme="dark"] {
-    --bg: #1f1f1f;
-    --surface: #292929;
-    --line: #3d3d3d;
-    --text: #ffffff;
-    --muted: #adadad;
-    --accent: #7f85f5;
-    --accent-soft: #2f2f4a;
-    --warn-bg: #463100;
-    --warn-text: #ffe8a3;
+    --bg: #1b1b1b; --surface: #292929; --line: #3d3d3d; --text: #ffffff; --muted: #adadad;
+    --accent: #7f85f5; --accent-soft: #2f2f4a; --danger: #f1707b;
+    --warn-bg: #463100; --warn-text: #ffe8a3;
+    --word: #6ea6ff; --excel: #54c784; --ppt: #ff8a65; --pdf: #ff6b5e; --other: #7f85f5;
     color-scheme: dark;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #1f1f1f; --surface: #292929; --line: #3d3d3d; --text: #ffffff;
-      --muted: #adadad; --accent: #7f85f5; --accent-soft: #2f2f4a;
-      --warn-bg: #463100; --warn-text: #ffe8a3; color-scheme: dark;
+      --bg: #1b1b1b; --surface: #292929; --line: #3d3d3d; --text: #ffffff; --muted: #adadad;
+      --accent: #7f85f5; --accent-soft: #2f2f4a; --danger: #f1707b;
+      --warn-bg: #463100; --warn-text: #ffe8a3;
+      --word: #6ea6ff; --excel: #54c784; --ppt: #ff8a65; --pdf: #ff6b5e; --other: #7f85f5;
+      color-scheme: dark;
     }
   }
-
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
@@ -45,312 +36,967 @@
     font-size: 14px; color: var(--text); background: var(--bg);
     display: flex; flex-direction: column; overflow: hidden;
   }
-  button, input { font: inherit; color: inherit; }
+  button, input, select { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
 
-  /* Bovenbalk */
-  .bar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line);
-    flex-wrap: wrap;
-  }
-  .bar h1 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; white-space: nowrap; }
+  .bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface);
+         border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .bar .spacer { flex: 1; }
-  .btn {
-    border: 1px solid var(--line); background: var(--surface); border-radius: 4px;
-    padding: 5px 12px; cursor: pointer; white-space: nowrap;
-  }
-  a.btn { text-decoration: none; color: var(--text); display: inline-block; }
+  .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 4px; padding: 5px 12px;
+         cursor: pointer; white-space: nowrap; text-decoration: none; color: var(--text); display: inline-block; }
   .btn:hover { background: var(--accent-soft); }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn.primary:hover { filter: brightness(1.08); }
-  .btn.icon { padding: 5px 9px; }
-  input[type="url"] {
-    border: 1px solid var(--line); background: var(--bg); border-radius: 4px;
-    padding: 5px 10px; min-width: 0; flex: 1;
+  .btn.danger { color: var(--danger); }
+  .btn.icon { padding: 5px 9px; min-width: 32px; }
+  select, input[type="url"], input[type="text"] {
+    border: 1px solid var(--line); background: var(--bg); border-radius: 4px; padding: 5px 10px; min-width: 0;
   }
-
-  /* Werkruimte */
-  .workspace { flex: 1; display: flex; min-height: 0; position: relative; }
-  .board { flex: 1; min-width: 200px; display: flex; flex-direction: column; position: relative; }
-  .board iframe, .viewer iframe { flex: 1; width: 100%; border: 0; background: var(--surface); }
-
-  .notice {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 6px 12px; background: var(--warn-bg); color: var(--warn-text); font-size: 13px;
-  }
-  .notice a { color: inherit; font-weight: 600; }
-  .notice button { margin-left: auto; background: none; border: 0; cursor: pointer; color: inherit; font-size: 16px; }
-
-  .empty {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 12px; padding: 24px; text-align: center; color: var(--muted);
-  }
-  .empty p { margin: 0; max-width: 46ch; line-height: 1.5; }
-  .empty .row { display: flex; gap: 8px; width: min(560px, 100%); }
-
-  /* Scheidingslijn om de breedte te verslepen */
-  .divider {
-    width: 6px; cursor: col-resize; background: var(--line); flex: none; position: relative;
-  }
-  .divider:hover, .divider.dragging { background: var(--accent); }
-
-  /* Viewer rechts */
-  .viewer {
-    width: 45%; min-width: 280px; max-width: 80%;
-    display: flex; flex-direction: column; background: var(--surface); flex: none;
-  }
-  .viewer-head {
-    display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line);
-  }
-  .viewer-head .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-  .seg button { border: 0; background: var(--surface); padding: 4px 10px; cursor: pointer; }
+  .seg button { border: 0; background: var(--surface); padding: 5px 12px; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-  .viewer-src { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 
-  /* Lipje om de viewer weer te openen */
-  .reopen {
-    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    writing-mode: vertical-rl; padding: 14px 6px; border: 1px solid var(--line); border-right: 0;
-    border-radius: 6px 0 0 6px; background: var(--surface); cursor: pointer; font-weight: 600;
-    color: var(--accent); box-shadow: -2px 0 8px rgba(0,0,0,.08);
-  }
-  .reopen:hover { background: var(--accent-soft); }
+  .hint { padding: 6px 12px; background: var(--warn-bg); color: var(--warn-text); font-size: 13px; }
 
-  [hidden] { display: none !important; }
+  .workspace { flex: 1; display: flex; min-height: 0; position: relative; }
+
+  /* Bord */
+  .stage { flex: 1; min-width: 200px; position: relative; overflow: hidden; background: var(--bg);
+           touch-action: none; cursor: grab; }
+  .stage.edit { cursor: crosshair; }
+  .stage.panning, .stage.space { cursor: grabbing; }
+  .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --s: 1; }
+  .world img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none;
+               box-shadow: 0 0 0 1px var(--line); background: #fff; }
+
+  /* Documentpin: het klikbare gebied op het bord */
+  .hs { position: absolute; border: calc(2px / var(--s)) solid var(--kind); border-radius: calc(4px / var(--s));
+        background: color-mix(in srgb, var(--kind) 6%, transparent); cursor: pointer; --kind: var(--other); }
+  .hs:hover, .hs.active { background: color-mix(in srgb, var(--kind) 16%, transparent); }
+  .hs.k-word { --kind: var(--word); } .hs.k-excel { --kind: var(--excel); }
+  .hs.k-ppt { --kind: var(--ppt); } .hs.k-pdf { --kind: var(--pdf); }
+  .hs.nolink { border-style: dashed; --kind: var(--muted); }
+  .hs .tag { position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; transform: scale(calc(1 / var(--s)));
+             background: var(--kind); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 8px;
+             border-radius: 4px 4px 0 0; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+             pointer-events: none; }
+  .hs .tag small { font-weight: 400; opacity: .9; margin-left: 6px; }
+  .stage.hide-pins .hs { border-color: transparent; background: transparent; }
+  .stage.hide-pins .hs .tag { display: none; }
+  .stage.hide-pins .hs:hover { border-color: var(--kind); background: color-mix(in srgb, var(--kind) 12%, transparent); }
+  .stage.edit .hs { cursor: move; }
+  .hs .handle { position: absolute; right: 0; bottom: 0; width: calc(14px / var(--s)); height: calc(14px / var(--s));
+                background: var(--kind); cursor: nwse-resize; border-radius: calc(3px / var(--s)) 0 calc(3px / var(--s)) 0; }
+  .draw { position: absolute; border: calc(2px / var(--s)) dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
+
+  .zoom { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 4px; background: var(--surface);
+          border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
+  .zoom span { min-width: 48px; text-align: center; align-self: center; color: var(--muted); font-size: 12px; }
+
+  /* Lege staat en importstappen */
+  .setup { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto; }
+  .setup .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 24px;
+                 width: min(620px, 100%); }
+  .setup h2 { margin: 0 0 4px; font-size: 18px; }
+  .setup p.lead { margin: 0 0 20px; color: var(--muted); line-height: 1.5; }
+  .step { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .step .n { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+             display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .step h3 { margin: 3px 0 6px; font-size: 14px; }
+  .step p { margin: 0 0 10px; color: var(--muted); line-height: 1.5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row input { flex: 1; min-width: 200px; }
+  .drop { border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--muted); }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+
+  /* Viewer */
+  .divider { width: 6px; cursor: col-resize; background: var(--line); flex: none; }
+  .divider:hover, .divider.dragging { background: var(--accent); }
+  .viewer { width: 45%; min-width: 280px; max-width: 80%; display: flex; flex-direction: column;
+            background: var(--surface); flex: none; }
+  .viewer-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .viewer-head .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .viewer iframe { flex: 1; width: 100%; border: 0; background: var(--surface); }
+  .viewer .empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;
+                   text-align: center; color: var(--muted); line-height: 1.5; }
+  .reopen { position: absolute; right: 0; top: 50%; transform: translateY(-50%); writing-mode: vertical-rl;
+            padding: 14px 6px; border: 1px solid var(--line); border-right: 0; border-radius: 6px 0 0 6px;
+            background: var(--surface); cursor: pointer; font-weight: 600; color: var(--accent); z-index: 2; }
   body.resizing iframe { pointer-events: none; }
+
+  /* Dialogen */
+  dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text);
+           padding: 0; width: min(520px, 92vw); }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  dialog .d-head { padding: 16px 20px 0; font-size: 16px; font-weight: 600; }
+  dialog .d-body { padding: 12px 20px; display: grid; gap: 12px; }
+  dialog label { display: grid; gap: 4px; font-weight: 600; font-size: 13px; }
+  dialog label span { font-weight: 400; color: var(--muted); }
+  dialog .d-foot { padding: 12px 20px 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+  dialog .d-foot .spacer { flex: 1; }
+  dialog hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+
+  .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .progress div { height: 100%; width: 0%; background: var(--accent); transition: width .2s; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text);
+           color: var(--surface); padding: 8px 16px; border-radius: 6px; z-index: 10; max-width: 90vw; }
 
   @media (max-width: 700px) {
     .workspace { flex-direction: column; }
     .viewer { width: 100% !important; max-width: none; min-width: 0; height: 55%; }
     .divider { display: none; }
   }
+  @media (prefers-reduced-motion: no-preference) {
+    .hs { transition: background-color .12s; }
+  }
 </style>
 </head>
 <body>
 
 <header class="bar">
-  <h1>Whiteboard</h1>
-  <button class="btn" id="changeBoard" hidden>Ander whiteboard</button>
-  <a class="btn" id="openBoardExternal" target="_blank" rel="noopener" hidden>Whiteboard in nieuw venster</a>
+  <select id="boardSelect" aria-label="Kies een bord"></select>
+  <button class="btn" id="newBoard">Nieuw bord</button>
+  <button class="btn" id="settingsBtn">Bordinstellingen</button>
+  <button class="btn" id="refreshBtn">Bord verversen</button>
+  <button class="btn" id="recognizeBtn">Documenten herkennen</button>
+  <div class="seg" role="group" aria-label="Modus" id="modeSeg">
+    <button id="modeView" aria-pressed="true">Presenteren</button>
+    <button id="modeEdit" aria-pressed="false">Koppelingen bewerken</button>
+  </div>
+  <label class="btn" style="display:inline-flex;gap:6px;align-items:center">
+    <input type="checkbox" id="showPins" checked> Gebieden tonen
+  </label>
   <span class="spacer"></span>
   <button class="btn primary" id="toggleViewer" aria-controls="viewer" aria-expanded="false">Document tonen</button>
 </header>
+<div class="hint" id="editHint" hidden>
+  Sleep een rechthoek over een document op het bord om het klikbaar te maken. Klik op een gebied om de koppeling te wijzigen, sleep het om te verplaatsen of gebruik het hoekje rechtsonder om het groter of kleiner te maken. Houd de spatiebalk ingedrukt om het bord te verschuiven.
+</div>
+<div class="hint" id="storageHint" hidden>
+  Deze omgeving kan niets bewaren. Je bord verdwijnt als je de app sluit. Gebruik Project exporteren in de bordinstellingen om het veilig te stellen.
+</div>
 
 <main class="workspace" id="workspace">
-
-  <section class="board" aria-label="Whiteboard">
-    <div class="notice" id="boardNotice" hidden>
-      <span>Blijft het whiteboard leeg of zie je een foutmelding? Microsoft staat insluiten dan niet toe in deze omgeving.</span>
-      <a id="noticeLink" target="_blank" rel="noopener">Open het whiteboard apart</a>
-      <button id="noticeClose" aria-label="Melding sluiten">×</button>
+  <section class="stage" id="stage" aria-label="Whiteboard">
+    <div class="world" id="world"><img id="boardImg" alt="Geëxporteerd whiteboard"></div>
+    <div class="zoom" id="zoomBar" hidden>
+      <button class="btn icon" id="zoomOut" aria-label="Uitzoomen">−</button>
+      <span id="zoomLabel">100%</span>
+      <button class="btn icon" id="zoomIn" aria-label="Inzoomen">+</button>
+      <button class="btn" id="zoomFit">Passend</button>
     </div>
 
-    <div class="empty" id="boardEmpty">
-      <p>Plak de link van je Microsoft Whiteboard. Die vind je in Whiteboard via <strong>Delen</strong> en dan <strong>Link kopiëren</strong>.</p>
-      <div class="row" id="boardForm">
-        <input type="url" id="boardInput" placeholder="https://whiteboard.cloud.microsoft/…" required aria-label="Link naar whiteboard">
-        <button class="btn primary" type="button" id="boardLoad">Whiteboard laden</button>
+    <div class="setup" id="setup" hidden>
+      <div class="card">
+        <h2 id="setupTitle">Whiteboard importeren</h2>
+        <p class="lead">Ontwerp je bord in Microsoft Whiteboard, zet het hier neer en maak de documenten erop klikbaar.</p>
+        <div class="step">
+          <div class="n">1</div>
+          <div>
+            <h3>Plak de link van je Microsoft Whiteboard</h3>
+            <p>In Whiteboard: Delen, dan Link kopiëren. De app bewaart de link, zodat je het bord later snel opnieuw opent om te verversen.</p>
+            <div class="row">
+              <input type="url" id="setupUrl" placeholder="https://whiteboard.cloud.microsoft/…" aria-label="Whiteboard-link">
+              <button class="btn" type="button" id="setupOpen">Openen in Whiteboard</button>
+            </div>
+            <p style="margin:12px 0 6px">Staan je documenten in één SharePoint-map? Plak dan ook de link van die map. De app koppelt herkende documenten dan automatisch. Open de map in je browser en kopieer de adresbalk.</p>
+            <div class="row">
+              <input type="url" id="setupFolder" placeholder="https://…sharepoint.com/sites/…/Gedeelde documenten/…" aria-label="Link naar documentmap">
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <div>
+            <h3>Exporteer het bord als afbeelding</h3>
+            <p>In Microsoft Whiteboard: open Instellingen (het tandwiel), kies Afbeelding exporteren en daarna Hoge resolutie. Het bestand komt in je Downloads-map.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <div>
+            <h3>Upload de afbeelding</h3>
+            <div class="drop" id="drop">
+              <p style="margin:0 0 10px">Sleep het PNG-bestand hierheen, of</p>
+              <button class="btn primary" type="button" id="setupPick">Afbeelding kiezen</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-
-    <iframe id="boardFrame" title="Microsoft Whiteboard" hidden
-      allow="clipboard-read; clipboard-write; fullscreen"></iframe>
   </section>
 
-  <div class="divider" id="divider" role="separator" aria-orientation="vertical"
-       aria-label="Breedte van de viewer aanpassen" tabindex="0" hidden></div>
+  <div class="divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Breedte van de viewer aanpassen" hidden></div>
 
   <aside class="viewer" id="viewer" aria-label="Documentviewer" hidden>
     <div class="viewer-head">
       <span class="title" id="docTitle">Document</span>
-      <div class="seg" role="group" aria-label="Modus">
-        <button id="modeView" aria-pressed="true">Bekijken</button>
-        <button id="modeEdit" aria-pressed="false">Bewerken</button>
+      <div class="seg" role="group" aria-label="Weergave">
+        <button id="docView" aria-pressed="true">Bekijken</button>
+        <button id="docEdit" aria-pressed="false">Bewerken</button>
       </div>
       <a class="btn icon" id="docExternal" target="_blank" rel="noopener" title="Openen in nieuw venster" aria-label="Openen in nieuw venster">↗</a>
       <button class="btn icon" id="closeViewer" title="Viewer sluiten (Esc)" aria-label="Viewer sluiten">✕</button>
     </div>
-    <div class="viewer-src" id="docForm">
-      <input type="url" id="docInput" placeholder="Link naar Word-, Excel-, PowerPoint- of PDF-bestand" required aria-label="Link naar document">
-      <button class="btn" type="button" id="docLoad">Openen</button>
-    </div>
-    <div class="empty" id="docEmpty">
-      <p>Plak hierboven de link naar een bestand in OneDrive, SharePoint of Teams. Kopieer die via <strong>Delen</strong> en dan <strong>Link kopiëren</strong>, of open het bestand in de browser en kopieer de adresbalk.</p>
-    </div>
+    <div class="empty" id="docEmpty">Klik op een document op het bord om het hier te openen.</div>
     <iframe id="docFrame" title="Document" hidden allow="clipboard-read; clipboard-write; fullscreen"></iframe>
   </aside>
-
-  <button class="reopen" id="reopen" hidden aria-controls="viewer">Document</button>
+  <button class="reopen" id="reopen" aria-controls="viewer">Document</button>
 </main>
+
+<input type="file" id="imgFile" accept="image/png,image/jpeg,image/svg+xml" hidden>
+<input type="file" id="projFile" accept="application/json,.json" hidden>
+
+<!-- Koppeling bewerken -->
+<dialog id="hsDialog" aria-labelledby="hsTitle">
+  <div class="d-head" id="hsTitle">Document koppelen</div>
+  <div class="d-body">
+    <label>Naam op het bord
+      <input type="text" id="hsName" placeholder="Bijvoorbeeld Kaderbrief">
+    </label>
+    <label>Link naar het document
+      <span>Word, Excel, PowerPoint of PDF uit SharePoint, OneDrive of Teams. Kopieer via Delen, dan Link kopiëren, of uit de adresbalk van je browser.</span>
+      <input type="url" id="hsUrl" placeholder="https://…sharepoint.com/…">
+    </label>
+  </div>
+  <div class="d-foot">
+    <button class="btn danger" type="button" id="hsDelete">Gebied verwijderen</button>
+    <span class="spacer"></span>
+    <button class="btn" type="button" id="hsTest">Testen</button>
+    <button class="btn" type="button" id="hsCancel">Annuleren</button>
+    <button class="btn primary" type="button" id="hsSave">Opslaan</button>
+  </div>
+</dialog>
+
+<!-- Bordinstellingen -->
+<dialog id="setDialog" aria-labelledby="setTitle">
+  <div class="d-head" id="setTitle">Bordinstellingen</div>
+  <div class="d-body">
+    <label>Naam van het bord
+      <input type="text" id="setName">
+    </label>
+    <label>Link naar het Microsoft Whiteboard
+      <input type="url" id="setUrl" placeholder="https://whiteboard.cloud.microsoft/…">
+    </label>
+    <div class="row"><button class="btn" type="button" id="setOpenWb">Openen in Microsoft Whiteboard</button></div>
+    <label>Documentmap in SharePoint
+      <span>Herkende documenten worden aan bestanden in deze map gekoppeld. Open de map in je browser en kopieer de adresbalk. Een deellink (met /:f:/) werkt hier niet.</span>
+      <input type="url" id="setFolder" placeholder="https://…sharepoint.com/sites/…/Gedeelde documenten/…">
+    </label>
+    <hr>
+    <label>Delen met collega's
+      <span>Exporteer het bord met alle koppelingen als één bestand. Een collega importeert dat bestand in zijn eigen app.</span>
+    </label>
+    <div class="row">
+      <button class="btn" type="button" id="setExport">Project exporteren</button>
+      <button class="btn" type="button" id="setImport">Project importeren</button>
+    </div>
+    <hr>
+    <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
+  </div>
+  <div class="d-foot">
+    <span class="spacer"></span>
+    <button class="btn" type="button" id="setCancel">Annuleren</button>
+    <button class="btn primary" type="button" id="setSave">Opslaan</button>
+  </div>
+</dialog>
+
+<!-- Verversen -->
+<dialog id="refDialog" aria-labelledby="refTitle">
+  <div class="d-head" id="refTitle">Bord verversen</div>
+  <div class="d-body">
+    <p style="margin:0;line-height:1.5">Heb je het bord in Microsoft Whiteboard aangepast? Exporteer het opnieuw als afbeelding (Instellingen, Afbeelding exporteren, Hoge resolutie) en kies die nieuwe afbeelding hier. Je koppelingen blijven staan.</p>
+    <p style="margin:0;line-height:1.5;color:var(--muted)">Tip: verschuif in Whiteboard niets aan de buitenranden van het bord. Dan blijven de klikbare gebieden precies op hun plek.</p>
+  </div>
+  <div class="d-foot">
+    <button class="btn" type="button" id="refOpenWb">Openen in Microsoft Whiteboard</button>
+    <span class="spacer"></span>
+    <button class="btn" type="button" id="refCancel">Annuleren</button>
+    <button class="btn primary" type="button" id="refPick">Nieuwe afbeelding kiezen</button>
+  </div>
+</dialog>
+
+<dialog id="ocrDialog" aria-labelledby="ocrTitle">
+  <div class="d-head" id="ocrTitle">Documenten herkennen</div>
+  <div class="d-body">
+    <p style="margin:0" id="ocrStatus">Tekstherkenning laden…</p>
+    <div class="progress"><div id="ocrBar"></div></div>
+    <p style="margin:0;color:var(--muted);font-size:13px">De app zoekt op het bord naar bestandsnamen zoals Map.xlsx en maakt er klikbare gebieden van. Bij een groot bord duurt dit tot een halve minuut.</p>
+  </div>
+  <div class="d-foot"><span class="spacer"></span><button class="btn" type="button" id="ocrSkip">Overslaan</button></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 <script>
 (function () {
+  "use strict";
   const $ = (id) => document.getElementById(id);
-  const store = {
+  const ls = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   };
-
-  /* ---------- Teams-koppeling (werkt ook gewoon in een browser) ---------- */
-  function applyTheme(t) {
-    document.documentElement.dataset.theme = (t === "dark" || t === "contrast") ? "dark" : "light";
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3200);
   }
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  /* ---------------- Teams ---------------- */
+  function applyTheme(t) { document.documentElement.dataset.theme = (t === "dark" || t === "contrast") ? "dark" : "light"; }
   if (window.microsoftTeams && microsoftTeams.app) {
     microsoftTeams.app.initialize().then(() => {
-      microsoftTeams.app.getContext().then((ctx) => applyTheme(ctx.app && ctx.app.theme));
+      microsoftTeams.app.getContext().then((c) => applyTheme(c.app && c.app.theme));
       microsoftTeams.app.registerOnThemeChangeHandler(applyTheme);
       microsoftTeams.app.notifySuccess();
-    }).catch(() => { /* buiten Teams: gewoon doorgaan */ });
+    }).catch(() => {});
   }
 
-  /* ---------- Whiteboard ---------- */
-  function boardEmbedUrl(raw) {
-    try {
-      const u = new URL(raw);
-      if (/whiteboard/i.test(u.hostname)) {
-        if (!u.searchParams.has("embed")) u.searchParams.set("embed", "1");
-        if (!u.searchParams.has("isOpenInTab")) u.searchParams.set("isOpenInTab", "1");
-      }
-      return u.toString();
-    } catch (e) { return raw; }
+  /* ---------------- Opslag (IndexedDB, anders alleen in geheugen) ---------------- */
+  const mem = new Map();
+  let db = null;
+  function openDb() {
+    return new Promise((res) => {
+      try {
+        const r = indexedDB.open("wb-converter", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("boards", { keyPath: "id" });
+        r.onsuccess = () => { db = r.result; res(); };
+        r.onerror = () => res();
+        r.onblocked = () => res();
+      } catch (e) { res(); }
+    });
+  }
+  function tx(mode) { return db.transaction("boards", mode).objectStore("boards"); }
+  function dbAll() {
+    if (!db) return Promise.resolve([...mem.values()]);
+    return new Promise((res) => { const r = tx("readonly").getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
+  }
+  function dbPut(b) {
+    if (!db) { mem.set(b.id, b); return Promise.resolve(); }
+    return new Promise((res) => {
+      try { const r = tx("readwrite").put(b); r.onsuccess = () => res(); r.onerror = () => { toast("Opslaan is niet gelukt."); res(); }; }
+      catch (e) { toast("Opslaan is niet gelukt."); res(); }
+    });
+  }
+  function dbDel(id) {
+    if (!db) { mem.delete(id); return Promise.resolve(); }
+    return new Promise((res) => { const r = tx("readwrite").delete(id); r.onsuccess = r.onerror = () => res(); });
   }
 
-  function loadBoard(raw) {
-    store.set("wb.board", raw);
-    $("boardFrame").src = boardEmbedUrl(raw);
-    $("boardFrame").hidden = false;
-    $("boardEmpty").hidden = true;
-    $("changeBoard").hidden = false;
-    $("openBoardExternal").href = raw;
-    $("openBoardExternal").hidden = false;
-    $("noticeLink").href = raw;
-    if (store.get("wb.noticeDismissed") !== "1") $("boardNotice").hidden = false;
+  /* ---------------- Staat ---------------- */
+  const st = { boards: [], cur: null, mode: "view", v: { x: 0, y: 0, s: 1 }, space: false, objUrl: null };
+  const stage = $("stage"), world = $("world"), img = $("boardImg");
+  const save = () => st.cur && dbPut(st.cur);
+
+  function newBoardObj(name) {
+    return { id: uid(), name, wbUrl: "", image: null, imgW: 0, imgH: 0, hotspots: [], created: Date.now() };
   }
 
-  function isUrl(v) { try { const u = new URL(v); return u.protocol === "https:"; } catch (e) { return false; } }
-  function submitBoard() {
-    const v = $("boardInput").value.trim();
-    if (!isUrl(v)) { $("boardInput").setCustomValidity("Plak een volledige link die begint met https://"); $("boardInput").reportValidity(); return; }
-    $("boardInput").setCustomValidity("");
-    loadBoard(v);
+  function renderBoardSelect() {
+    const sel = $("boardSelect"); sel.innerHTML = "";
+    st.boards.sort((a, b) => a.created - b.created).forEach((b) => {
+      const o = document.createElement("option"); o.value = b.id; o.textContent = b.name; sel.appendChild(o);
+    });
+    if (st.cur) sel.value = st.cur.id;
   }
-  $("boardLoad").addEventListener("click", submitBoard);
-  $("boardInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitBoard(); } });
-  $("boardInput").addEventListener("input", () => $("boardInput").setCustomValidity(""));
-  $("changeBoard").addEventListener("click", () => {
-    $("boardFrame").hidden = true; $("boardFrame").src = "about:blank";
-    $("boardEmpty").hidden = false; $("changeBoard").hidden = true; $("openBoardExternal").hidden = true;
-    $("boardNotice").hidden = true;
-    $("boardInput").value = store.get("wb.board") || ""; $("boardInput").focus();
+
+  function selectBoard(id) {
+    st.cur = st.boards.find((b) => b.id === id) || st.boards[0];
+    ls.set("wbc.last", st.cur.id);
+    renderBoardSelect();
+    renderStage();
+  }
+
+  function renderStage() {
+    const b = st.cur, has = !!(b && b.image);
+    $("setup").hidden = has;
+    world.hidden = !has;
+    $("zoomBar").hidden = !has;
+    $("refreshBtn").disabled = !has;
+    $("recognizeBtn").disabled = !has;
+    $("modeSeg").style.visibility = has ? "visible" : "hidden";
+    if (!has) {
+      setMode("view");
+      $("setupUrl").value = b ? b.wbUrl : "";
+      $("setupFolder").value = b ? (b.docFolder || "") : "";
+      $("setupTitle").textContent = b ? "Whiteboard importeren: " + b.name : "Whiteboard importeren";
+      return;
+    }
+    if (st.objUrl) URL.revokeObjectURL(st.objUrl);
+    st.objUrl = URL.createObjectURL(b.image);
+    img.src = st.objUrl;
+    world.style.width = b.imgW + "px";
+    world.style.height = b.imgH + "px";
+    renderHotspots();
+    fit();
+  }
+
+  /* ---------------- Afbeelding importeren ---------------- */
+  function readSize(blob) {
+    return new Promise((res, rej) => {
+      const u = URL.createObjectURL(blob), i = new Image();
+      i.onload = () => { const w = i.naturalWidth || 1600, h = i.naturalHeight || 1000; URL.revokeObjectURL(u); res({ w, h }); };
+      i.onerror = () => { URL.revokeObjectURL(u); rej(); };
+      i.src = u;
+    });
+  }
+  async function importImage(file) {
+    if (!file || !/^image\//.test(file.type)) { toast("Kies een PNG-, JPG- of SVG-afbeelding."); return; }
+    let size;
+    try { size = await readSize(file); } catch (e) { toast("Deze afbeelding kan niet worden geopend."); return; }
+    const b = st.cur, had = !!b.image;
+    if (had && b.imgW && b.imgH) {
+      const oldR = b.imgW / b.imgH, newR = size.w / size.h;
+      if (Math.abs(oldR - newR) / oldR > 0.02) toast("De nieuwe afbeelding heeft andere verhoudingen. Controleer of de gebieden nog goed staan.");
+      else toast("Bord ververst. Je koppelingen zijn behouden.");
+    }
+    b.image = file; b.imgW = size.w; b.imgH = size.h; b.updated = Date.now();
+    await save();
+    renderStage();
+    recognize();
+  }
+  $("imgFile").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importImage(f); });
+  $("setupPick").addEventListener("click", () => $("imgFile").click());
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach((t) => stage.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((t) => stage.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  stage.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) importImage(f); });
+
+  function openWhiteboard(url) {
+    if (!/^https:\/\//i.test(url || "")) { toast("Vul eerst de link van je Microsoft Whiteboard in."); return; }
+    window.open(url, "_blank", "noopener");
+  }
+  $("setupOpen").addEventListener("click", () => {
+    const u = $("setupUrl").value.trim();
+    if (u && st.cur) { st.cur.wbUrl = u; save(); }
+    openWhiteboard(u);
   });
-  $("noticeClose").addEventListener("click", () => { $("boardNotice").hidden = true; store.set("wb.noticeDismissed", "1"); });
+  $("setupUrl").addEventListener("change", () => { if (st.cur) { st.cur.wbUrl = $("setupUrl").value.trim(); save(); } });
+  $("setupFolder").addEventListener("change", () => { if (st.cur) { st.cur.docFolder = $("setupFolder").value.trim(); save(); } });
 
-  /* ---------- Viewer openen en sluiten ---------- */
-  let viewerOpen = false;
+  /* ---------------- Zoomen en verschuiven ---------------- */
+  function applyView() {
+    const v = st.v;
+    world.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
+    world.style.setProperty("--s", v.s);
+    $("zoomLabel").textContent = Math.round(v.s * 100) + "%";
+  }
+  function fit() {
+    const b = st.cur; if (!b || !b.imgW) return;
+    const r = stage.getBoundingClientRect();
+    const s = Math.min((r.width - 48) / b.imgW, (r.height - 48) / b.imgH);
+    st.v.s = clamp(s, 0.02, 8);
+    st.v.x = (r.width - b.imgW * st.v.s) / 2;
+    st.v.y = (r.height - b.imgH * st.v.s) / 2;
+    applyView();
+  }
+  function zoomAt(mx, my, factor) {
+    const v = st.v, ns = clamp(v.s * factor, 0.02, 8), k = ns / v.s;
+    v.x = mx - (mx - v.x) * k; v.y = my - (my - v.y) * k; v.s = ns; applyView();
+  }
+  function zoomCenter(f) { const r = stage.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); }
+  $("zoomIn").addEventListener("click", () => zoomCenter(1.25));
+  $("zoomOut").addEventListener("click", () => zoomCenter(0.8));
+  $("zoomFit").addEventListener("click", fit);
+  stage.addEventListener("wheel", (e) => {
+    if (!st.cur || !st.cur.image) return;
+    e.preventDefault();
+    const r = stage.getBoundingClientRect();
+    if (e.ctrlKey || !e.shiftKey && Math.abs(e.deltaY) >= Math.abs(e.deltaX) && !e.altKey) {
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+    } else { st.v.x -= e.deltaX || e.deltaY; applyView(); }
+  }, { passive: false });
+  let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => st.cur && st.cur.image && fit(), 150); });
+
+  /* ---------------- Documentgebieden ---------------- */
+  function kindOf(url) {
+    const u = (url || "").toLowerCase();
+    if (/\.docx?\b|:w:|wdorigin|\bword\b/.test(u)) return "word";
+    if (/\.xlsx?\b|:x:|\bexcel\b/.test(u)) return "excel";
+    if (/\.pptx?\b|:p:|powerpoint/.test(u)) return "ppt";
+    if (/\.pdf\b|:b:/.test(u)) return "pdf";
+    return "other";
+  }
+  const kindLabel = { word: "Word", excel: "Excel", ppt: "PowerPoint", pdf: "PDF", other: "Document" };
+
+  function renderHotspots() {
+    world.querySelectorAll(".hs").forEach((n) => n.remove());
+    const b = st.cur; if (!b) return;
+    b.hotspots.forEach((h) => {
+      const d = document.createElement("div");
+      const k = h.url ? kindOf(h.url) : null;
+      d.className = "hs " + (k ? "k-" + k : "nolink");
+      d.dataset.id = h.id;
+      d.style.left = h.x * 100 + "%"; d.style.top = h.y * 100 + "%";
+      d.style.width = h.w * 100 + "%"; d.style.height = h.h * 100 + "%";
+      d.setAttribute("role", "button"); d.tabIndex = 0;
+      d.setAttribute("aria-label", (h.name || "Document") + (h.url ? ", " + kindLabel[k] + " openen" : ", nog niet gekoppeld"));
+      const tag = document.createElement("span"); tag.className = "tag";
+      tag.textContent = h.name || "Naamloos";
+      const sm = document.createElement("small"); sm.textContent = h.url ? kindLabel[k] : "niet gekoppeld";
+      tag.appendChild(sm); d.appendChild(tag);
+      if (st.mode === "edit") { const hd = document.createElement("span"); hd.className = "handle"; d.appendChild(hd); }
+      d.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); st.mode === "edit" ? openHsDialog(h, false) : openHotspot(h); }
+      });
+      world.appendChild(d);
+    });
+    const none = b.hotspots.length === 0 && b.image && st.mode === "view";
+    if (none && !renderHotspots.told) { renderHotspots.told = true; toast("Nog geen klikbare documenten. Kies Koppelingen bewerken om ze toe te voegen."); }
+  }
+
+  function openHotspot(h) {
+    if (!h.url) { toast("Aan dit gebied is nog geen document gekoppeld."); return; }
+    world.querySelectorAll(".hs.active").forEach((n) => n.classList.remove("active"));
+    const el = world.querySelector(`.hs[data-id="${h.id}"]`); if (el) el.classList.add("active");
+    loadDoc(h.url, h.name);
+    setViewer(true);
+    // Schuif het bord zo dat het aangeklikte gebied naast de viewer zichtbaar blijft.
+    requestAnimationFrame(() => {
+      const sr = stage.getBoundingClientRect(), v = st.v, bd = st.cur;
+      const right = v.x + (h.x + h.w) * bd.imgW * v.s, left = v.x + h.x * bd.imgW * v.s;
+      if (right > sr.width - 24) { v.x -= Math.min(right - (sr.width - 24), left - 24); applyView(); }
+    });
+  }
+
+  /* ---------------- Aanwijzer: klikken, schuiven, tekenen ---------------- */
+  let drag = null;
+  function toImg(e) {
+    const r = stage.getBoundingClientRect(), v = st.v, b = st.cur;
+    return { x: ((e.clientX - r.left) - v.x) / v.s / b.imgW, y: ((e.clientY - r.top) - v.y) / v.s / b.imgH };
+  }
+  stage.addEventListener("pointerdown", (e) => {
+    if (!st.cur || !st.cur.image || e.button > 0) return;
+    if (e.target.closest(".zoom") || e.target.closest(".setup")) return;
+    const hsEl = e.target.closest(".hs"), p = toImg(e);
+    const h = hsEl && st.cur.hotspots.find((x) => x.id === hsEl.dataset.id);
+    const base = { sx: e.clientX, sy: e.clientY, ox: st.v.x, oy: st.v.y, p0: p };
+    if (st.mode === "view" || st.space) {
+      drag = h && !st.space ? { ...base, type: "click", h } : { ...base, type: "pan" };
+    } else if (h) {
+      drag = { ...base, type: e.target.classList.contains("handle") ? "resize" : "move", h, o: { ...h } };
+    } else {
+      const el = document.createElement("div"); el.className = "draw"; world.appendChild(el);
+      drag = { ...base, type: "draw", el };
+    }
+    if (drag.type === "pan") stage.classList.add("panning");
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy, moved = Math.hypot(dx, dy) > 4;
+    if (drag.type === "click" && moved) { drag.type = "pan"; stage.classList.add("panning"); }
+    if (drag.type === "pan") { st.v.x = drag.ox + dx; st.v.y = drag.oy + dy; applyView(); return; }
+    const p = toImg(e), b = st.cur;
+    if (drag.type === "draw") {
+      const x = clamp(Math.min(p.x, drag.p0.x), 0, 1), y = clamp(Math.min(p.y, drag.p0.y), 0, 1);
+      const w = clamp(Math.abs(p.x - drag.p0.x), 0, 1 - x), h = clamp(Math.abs(p.y - drag.p0.y), 0, 1 - y);
+      Object.assign(drag.el.style, { left: x * b.imgW + "px", top: y * b.imgH + "px", width: w * b.imgW + "px", height: h * b.imgH + "px" });
+      drag.rect = { x, y, w, h };
+    } else if (drag.type === "move" && moved) {
+      drag.moved = true;
+      drag.h.x = clamp(drag.o.x + (p.x - drag.p0.x), 0, 1 - drag.h.w);
+      drag.h.y = clamp(drag.o.y + (p.y - drag.p0.y), 0, 1 - drag.h.h);
+      renderHotspots();
+    } else if (drag.type === "resize") {
+      drag.moved = true;
+      drag.h.w = clamp(drag.o.w + (p.x - drag.p0.x), 0.005, 1 - drag.h.x);
+      drag.h.h = clamp(drag.o.h + (p.y - drag.p0.y), 0.005, 1 - drag.h.y);
+      renderHotspots();
+    }
+  });
+  function endDrag() {
+    if (!drag) return;
+    const d = drag; drag = null; stage.classList.remove("panning");
+    if (d.type === "click") openHotspot(d.h);
+    else if (d.type === "move" && !d.moved) openHsDialog(d.h, false);
+    else if (d.type === "move" || d.type === "resize") save();
+    else if (d.type === "draw") {
+      d.el.remove();
+      const r = d.rect, b = st.cur;
+      if (r && r.w * b.imgW * st.v.s > 12 && r.h * b.imgH * st.v.s > 12) {
+        const h = { id: uid(), ...r, name: "", url: "" };
+        b.hotspots.push(h); renderHotspots(); openHsDialog(h, true);
+      }
+    }
+  }
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointercancel", endDrag);
+
+  document.addEventListener("keydown", (e) => {
+    const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || document.querySelector("dialog[open]");
+    if (e.code === "Space" && !typing && st.mode === "edit") { e.preventDefault(); st.space = true; stage.classList.add("space"); }
+    if (e.key === "Escape" && !typing && viewerOpen) setViewer(false);
+  });
+  document.addEventListener("keyup", (e) => { if (e.code === "Space") { st.space = false; stage.classList.remove("space"); } });
+
+  /* ---------------- Modus ---------------- */
+  function setMode(m) {
+    st.mode = m;
+    $("modeView").setAttribute("aria-pressed", String(m === "view"));
+    $("modeEdit").setAttribute("aria-pressed", String(m === "edit"));
+    stage.classList.toggle("edit", m === "edit");
+    $("editHint").hidden = m !== "edit";
+    renderHotspots();
+  }
+  $("modeView").addEventListener("click", () => setMode("view"));
+  $("modeEdit").addEventListener("click", () => setMode("edit"));
+  $("showPins").addEventListener("change", (e) => { stage.classList.toggle("hide-pins", !e.target.checked); ls.set("wbc.pins", e.target.checked ? "1" : "0"); });
+
+  /* ---------------- Dialoog: koppeling ---------------- */
+  let editing = null;
+  function openHsDialog(h, isNew) {
+    editing = { h, isNew };
+    $("hsTitle").textContent = isNew ? "Document koppelen" : "Koppeling wijzigen";
+    $("hsName").value = h.name; $("hsUrl").value = h.url;
+    $("hsDelete").hidden = isNew;
+    $("hsDialog").showModal(); $("hsName").focus();
+  }
+  function closeHs(cancel) {
+    if (editing && cancel && editing.isNew) {
+      st.cur.hotspots = st.cur.hotspots.filter((x) => x !== editing.h); renderHotspots();
+    }
+    editing = null; $("hsDialog").close();
+  }
+  function validUrl(v) { try { return new URL(v).protocol === "https:"; } catch (e) { return false; } }
+  $("hsSave").addEventListener("click", () => {
+    const url = $("hsUrl").value.trim();
+    if (url && !validUrl(url)) { $("hsUrl").setCustomValidity("Plak een volledige link die begint met https://"); $("hsUrl").reportValidity(); return; }
+    editing.h.name = $("hsName").value.trim() || "Document";
+    editing.h.url = url; editing.isNew = false;
+    save(); renderHotspots(); closeHs(false);
+  });
+  $("hsUrl").addEventListener("input", () => $("hsUrl").setCustomValidity(""));
+  $("hsTest").addEventListener("click", () => {
+    const url = $("hsUrl").value.trim();
+    if (!validUrl(url)) { $("hsUrl").setCustomValidity("Plak een volledige link die begint met https://"); $("hsUrl").reportValidity(); return; }
+    loadDoc(url, $("hsName").value.trim() || "Document"); setViewer(true);
+  });
+  $("hsDelete").addEventListener("click", () => {
+    st.cur.hotspots = st.cur.hotspots.filter((x) => x !== editing.h); save(); renderHotspots(); closeHs(false);
+    toast("Gebied verwijderd.");
+  });
+  $("hsCancel").addEventListener("click", () => closeHs(true));
+  $("hsDialog").addEventListener("cancel", (e) => { e.preventDefault(); closeHs(true); });
+  [$("hsName"), $("hsUrl")].forEach((i) => i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("hsSave").click(); } }));
+
+  /* ---------------- Dialoog: bordinstellingen ---------------- */
+  let confirmDelete = false;
+  $("settingsBtn").addEventListener("click", () => {
+    $("setName").value = st.cur.name; $("setUrl").value = st.cur.wbUrl || ""; $("setFolder").value = st.cur.docFolder || "";
+    confirmDelete = false; $("setDelete").textContent = "Bord verwijderen";
+    $("setDialog").showModal();
+  });
+  $("setCancel").addEventListener("click", () => $("setDialog").close());
+  $("setSave").addEventListener("click", () => {
+    st.cur.name = $("setName").value.trim() || st.cur.name;
+    st.cur.wbUrl = $("setUrl").value.trim();
+    const folder = $("setFolder").value.trim();
+    if (folder && !parseFolder(folder)) { $("setFolder").setCustomValidity("Kopieer de link uit de adresbalk van de map, niet een deellink."); $("setFolder").reportValidity(); return; }
+    st.cur.docFolder = folder;
+    const n = autoLinkAll();
+    save(); renderBoardSelect(); renderHotspots(); $("setDialog").close();
+    toast(n ? `Opgeslagen. ${n} ${n === 1 ? "document" : "documenten"} automatisch gekoppeld.` : "Opgeslagen.");
+  });
+  $("setFolder").addEventListener("input", () => $("setFolder").setCustomValidity(""));
+  $("setOpenWb").addEventListener("click", () => openWhiteboard($("setUrl").value.trim()));
+  $("setDelete").addEventListener("click", async () => {
+    if (!confirmDelete) { confirmDelete = true; $("setDelete").textContent = "Klik nogmaals om definitief te verwijderen"; return; }
+    await dbDel(st.cur.id);
+    st.boards = st.boards.filter((b) => b !== st.cur);
+    if (!st.boards.length) { const nb = newBoardObj("Mijn bord"); st.boards.push(nb); await dbPut(nb); }
+    $("setDialog").close(); selectBoard(st.boards[0].id); toast("Bord verwijderd.");
+  });
+
+  function blobToDataUrl(blob) {
+    return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+  }
+  function dataUrlToBlob(du) {
+    const [head, data] = du.split(","); const mime = (head.match(/data:([^;]+)/) || [])[1] || "image/png";
+    const bin = atob(data), arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+  $("setExport").addEventListener("click", async () => {
+    const b = st.cur;
+    const out = { format: "whiteboard-converter", version: 1, name: b.name, wbUrl: b.wbUrl, docFolder: b.docFolder || "", imgW: b.imgW, imgH: b.imgH,
+                  hotspots: b.hotspots, image: b.image ? await blobToDataUrl(b.image) : null };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" }));
+    const a = document.createElement("a"); a.href = url;
+    a.download = (b.name || "bord").replace(/[^\w\- ]+/g, "").trim() + ".whiteboard.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast("Project geëxporteerd. Lukt downloaden in Teams niet, open de app dan in je browser.");
+  });
+  $("setImport").addEventListener("click", () => $("projFile").click());
+  $("projFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (d.format !== "whiteboard-converter") throw new Error();
+      const nb = newBoardObj(d.name || "Geïmporteerd bord");
+      nb.wbUrl = d.wbUrl || ""; nb.docFolder = d.docFolder || ""; nb.imgW = d.imgW || 0; nb.imgH = d.imgH || 0;
+      nb.hotspots = Array.isArray(d.hotspots) ? d.hotspots.map((h) => ({ id: uid(), x: +h.x, y: +h.y, w: +h.w, h: +h.h, name: String(h.name || ""), url: String(h.url || "") })) : [];
+      nb.image = d.image ? dataUrlToBlob(d.image) : null;
+      st.boards.push(nb); await dbPut(nb);
+      $("setDialog").close(); selectBoard(nb.id); toast("Project geïmporteerd als nieuw bord.");
+    } catch (err) { toast("Dit bestand is geen geëxporteerd project van deze app."); }
+  });
+
+  /* ---------------- Verversen en nieuw bord ---------------- */
+  $("refreshBtn").addEventListener("click", () => $("refDialog").showModal());
+  $("refCancel").addEventListener("click", () => $("refDialog").close());
+  $("refOpenWb").addEventListener("click", () => openWhiteboard(st.cur.wbUrl));
+  $("refPick").addEventListener("click", () => { $("refDialog").close(); $("imgFile").click(); });
+  $("newBoard").addEventListener("click", async () => {
+    const nb = newBoardObj("Bord " + (st.boards.length + 1));
+    st.boards.push(nb); await dbPut(nb); selectBoard(nb.id); $("setupUrl").focus();
+  });
+  $("boardSelect").addEventListener("change", (e) => selectBoard(e.target.value));
+
+  /* ---------------- Viewer ---------------- */
+  let viewerOpen = false, docRaw = "", docMode = "view";
   function setViewer(open) {
     viewerOpen = open;
-    $("viewer").hidden = !open;
-    $("divider").hidden = !open;
-    $("reopen").hidden = open;
+    $("viewer").hidden = !open; $("divider").hidden = !open; $("reopen").hidden = open;
     $("toggleViewer").textContent = open ? "Document verbergen" : "Document tonen";
     $("toggleViewer").setAttribute("aria-expanded", String(open));
-    store.set("wb.viewerOpen", open ? "1" : "0");
-    if (open && !$("docFrame").src) $("docInput").focus();
+    if (!open) world.querySelectorAll(".hs.active").forEach((n) => n.classList.remove("active"));
+    // Bord blijft op dezelfde plek; alleen de beschikbare breedte verandert.
   }
   $("toggleViewer").addEventListener("click", () => setViewer(!viewerOpen));
   $("closeViewer").addEventListener("click", () => setViewer(false));
   $("reopen").addEventListener("click", () => setViewer(true));
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && viewerOpen && document.activeElement.tagName !== "INPUT") setViewer(false);
-  });
-
-  /* ---------- Document laden ---------- */
-  let docRaw = "", mode = "view";
 
   function docUrl(raw, m) {
     try {
       const u = new URL(raw);
-      // SharePoint/OneDrive Office-bestanden (Doc.aspx, WopiFrame.aspx): modus via 'action'
       if (/\.aspx$/i.test(u.pathname) || u.searchParams.has("sourcedoc")) {
         u.searchParams.set("action", m === "edit" ? "edit" : "embedview");
-        return u.toString();
       }
       return u.toString();
     } catch (e) { return raw; }
   }
-
-  function guessTitle(raw) {
-    try {
-      const u = new URL(raw);
-      const f = u.searchParams.get("file");
-      if (f) return decodeURIComponent(f);
-      const last = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() || "");
-      return /\.(docx?|xlsx?|pptx?|pdf)$/i.test(last) ? last : "Document";
-    } catch (e) { return "Document"; }
-  }
-
-  function loadDoc(raw) {
+  function loadDoc(raw, title) {
     docRaw = raw;
-    store.set("wb.doc", raw);
-    $("docFrame").src = docUrl(raw, mode);
-    $("docFrame").hidden = false;
-    $("docEmpty").hidden = true;
-    $("docTitle").textContent = guessTitle(raw);
+    $("docFrame").src = docUrl(raw, docMode);
+    $("docFrame").hidden = false; $("docEmpty").hidden = true;
+    $("docTitle").textContent = title || "Document";
     $("docExternal").href = docUrl(raw, "edit");
   }
-
-  function setMode(m) {
-    mode = m;
-    $("modeView").setAttribute("aria-pressed", String(m === "view"));
-    $("modeEdit").setAttribute("aria-pressed", String(m === "edit"));
+  function setDocMode(m) {
+    docMode = m;
+    $("docView").setAttribute("aria-pressed", String(m === "view"));
+    $("docEdit").setAttribute("aria-pressed", String(m === "edit"));
     if (docRaw) $("docFrame").src = docUrl(docRaw, m);
   }
-  $("modeView").addEventListener("click", () => setMode("view"));
-  $("modeEdit").addEventListener("click", () => setMode("edit"));
-  function submitDoc() {
-    const v = $("docInput").value.trim();
-    if (!isUrl(v)) { $("docInput").setCustomValidity("Plak een volledige link die begint met https://"); $("docInput").reportValidity(); return; }
-    $("docInput").setCustomValidity("");
-    loadDoc(v);
-  }
-  $("docLoad").addEventListener("click", submitDoc);
-  $("docInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitDoc(); } });
-  $("docInput").addEventListener("input", () => $("docInput").setCustomValidity(""));
+  $("docView").addEventListener("click", () => setDocMode("view"));
+  $("docEdit").addEventListener("click", () => setDocMode("edit"));
 
-  /* ---------- Breedte verslepen ---------- */
   const divider = $("divider"), viewer = $("viewer"), ws = $("workspace");
-  function setWidth(px) {
-    const max = ws.clientWidth - 220;
-    const w = Math.max(280, Math.min(px, max));
-    viewer.style.width = w + "px";
-    store.set("wb.viewerWidth", String(w));
-  }
-  divider.addEventListener("pointerdown", (e) => {
-    divider.setPointerCapture(e.pointerId);
-    divider.classList.add("dragging"); document.body.classList.add("resizing");
-  });
-  divider.addEventListener("pointermove", (e) => {
-    if (!divider.classList.contains("dragging")) return;
-    setWidth(ws.getBoundingClientRect().right - e.clientX);
-  });
-  divider.addEventListener("pointerup", () => {
-    divider.classList.remove("dragging"); document.body.classList.remove("resizing");
-  });
+  function setWidth(px) { const w = clamp(px, 280, ws.clientWidth - 220); viewer.style.width = w + "px"; ls.set("wbc.vw", String(w)); }
+  divider.addEventListener("pointerdown", (e) => { divider.setPointerCapture(e.pointerId); divider.classList.add("dragging"); document.body.classList.add("resizing"); });
+  divider.addEventListener("pointermove", (e) => { if (divider.classList.contains("dragging")) setWidth(ws.getBoundingClientRect().right - e.clientX); });
+  divider.addEventListener("pointerup", () => { divider.classList.remove("dragging"); document.body.classList.remove("resizing"); });
   divider.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") setWidth(viewer.offsetWidth + 40);
     if (e.key === "ArrowRight") setWidth(viewer.offsetWidth - 40);
   });
 
-  /* ---------- Vorige sessie herstellen ---------- */
-  const savedBoard = store.get("wb.board");
-  if (savedBoard) loadBoard(savedBoard);
-  const savedDoc = store.get("wb.doc");
-  if (savedDoc) { $("docInput").value = savedDoc; loadDoc(savedDoc); }
-  const savedW = parseInt(store.get("wb.viewerWidth"), 10);
-  if (savedW) viewer.style.width = savedW + "px";
-  setViewer(store.get("wb.viewerOpen") === "1");
+  /* ---------------- Documenten herkennen (tekstherkenning) ---------------- */
+  const TESS_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  const EXTS = ["docx", "doc", "xlsx", "xlsm", "xls", "pptx", "ppt", "pdf"];
+  const SKIP_LINE = /https?:|www\.|sharepoint|onedrive|sourcedoc|file=|modified|gewijzigd|_layouts/i;
+
+  function loadTesseract() {
+    return new Promise((res, rej) => {
+      if (window.Tesseract) return res();
+      const sc = document.createElement("script"); sc.src = TESS_URL;
+      sc.onload = () => (window.Tesseract ? res() : rej(new Error("load")));
+      sc.onerror = () => rej(new Error("load"));
+      document.head.appendChild(sc);
+    });
+  }
+  // Veelvoorkomende leesfouten in extensies herstellen: xIsx, x1sx, d0cx, pdf.
+  function normExt(e) {
+    const n = e.toLowerCase().replace(/[1|i!]/g, "l").replace(/0/g, "o");
+    return EXTS.includes(n) ? n : null;
+  }
+  function looksLikeFile(name) { const m = /\.([a-z0-9]{3,4})$/i.exec(name || ""); return !!(m && EXTS.includes(m[1].toLowerCase())); }
+
+  // Zoek bestandsnamen in de herkende regels; geeft naam en kader (in afbeeldingspixels).
+  function findFileNames(data, scale) {
+    const out = [];
+    (data.lines || []).forEach((line) => {
+      if (!line.text || SKIP_LINE.test(line.text)) return;
+      const words = (line.words || []).filter((w) => w.text && w.text.trim());
+      words.forEach((w, i) => {
+        const m = /^(.*)\.([A-Za-z0-9|!]{3,4})[.,;:)\]]*$/.exec(w.text.trim());
+        if (!m) return;
+        const ext = normExt(m[2]); if (!ext) return;
+        // Neem voorgaande woorden van dezelfde regel mee (bestandsnamen met spaties), maximaal 6.
+        let start = i;
+        while (start > 0 && i - start < 5 && !/[:;]$/.test(words[start - 1].text)) start--;
+        const parts = words.slice(start, i).map((x) => x.text).concat([m[1]]);
+        const name = (parts.join(" ").replace(/^[^\wÀ-ÿ]+/, "").trim() + "." + ext).replace(/\s+\./g, ".");
+        if (name.length < 5) return;
+        const ws = words.slice(start, i + 1);
+        const bb = {
+          x0: Math.min(...ws.map((x) => x.bbox.x0)) / scale, y0: Math.min(...ws.map((x) => x.bbox.y0)) / scale,
+          x1: Math.max(...ws.map((x) => x.bbox.x1)) / scale, y1: Math.max(...ws.map((x) => x.bbox.y1)) / scale
+        };
+        out.push({ name, bb });
+      });
+    });
+    return out;
+  }
+
+  // Zoek de rand van de documentkaart rond de bestandsnaam.
+  function cardAround(px, W, H, bb) {
+    const lum = (x, y) => { const i = (y * W + x) * 4; return 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; };
+    const edgy = (v) => v <= 250 && v >= 110;
+    const th = Math.max(8, bb.y1 - bb.y0), maxD = Math.min(Math.max(W, H), th * 45);
+    const y0 = Math.max(0, Math.round(bb.y0)), y1 = Math.min(H - 1, Math.round(bb.y1));
+    const colHit = (x) => { let n = 0; for (let y = y0; y <= y1; y++) if (edgy(lum(x, y))) n++; return n / (y1 - y0 + 1) >= 0.8; };
+    let L = -1, R = -1;
+    for (let x = Math.round(bb.x0) - 3, d = 0; x >= 0 && d < maxD; x--, d++) if (colHit(x)) { L = x; break; }
+    for (let x = Math.round(bb.x1) + 3, d = 0; x < W && d < maxD; x++, d++) if (colHit(x)) { R = x; break; }
+    if (L < 0 || R < 0) return null;
+    const xa = L + 4, xb = R - 4; if (xb - xa < 10) return null;
+    const rowHit = (y) => { let n = 0, t = 0; for (let x = xa; x <= xb; x += 2) { t++; if (edgy(lum(x, y))) n++; } return n / t >= 0.8; };
+    let T = -1, B = -1;
+    for (let y = y0 - 3, d = 0; y >= 0 && d < maxD; y--, d++) if (rowHit(y)) { T = y; break; }
+    for (let y = y1 + 3, d = 0; y < H && d < maxD; y++, d++) if (rowHit(y)) { B = y; break; }
+    if (T < 0 || B < 0) return null;
+    if (R - L < bb.x1 - bb.x0 || B - T < th * 1.5) return null;
+    return { x0: L, y0: T, x1: R, y1: B };
+  }
+
+  function overlap(a, b) { // deel van het kleinste gebied dat overlapt
+    const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+    const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    return (ix * iy) / Math.min(a.w * a.h, b.w * b.h);
+  }
+
+  function parseFolder(url) {
+    try {
+      const u = new URL(url);
+      if (!/sharepoint\.com$/i.test(u.hostname)) return null;
+      if (/^\/:[a-z]:\//i.test(u.pathname)) return null; // deellink
+      let path = u.searchParams.get("id") || decodeURIComponent(u.pathname);
+      path = path.replace(/\/Forms\/[^/]+\.aspx$/i, "").replace(/\/[^/]+\.aspx$/i, "").replace(/\/+$/, "");
+      if (!path) return null;
+      const site = (path.match(/^\/(?:sites|teams)\/[^/]+/i) || [""])[0];
+      return { origin: u.origin, path, site };
+    } catch (e) { return null; }
+  }
+  function buildLink(folder, name) {
+    const f = parseFolder(folder || ""); if (!f) return "";
+    const file = f.path + "/" + name;
+    if (/\.pdf$/i.test(name)) return f.origin + encodeURI(file);
+    return f.origin + f.site + "/_layouts/15/Doc.aspx?sourcedoc=" + encodeURIComponent(file) +
+           "&file=" + encodeURIComponent(name) + "&action=embedview";
+  }
+  function autoLinkAll() {
+    let n = 0; const b = st.cur; if (!b || !b.docFolder) return 0;
+    b.hotspots.forEach((h) => { if (!h.url && looksLikeFile(h.name)) { const l = buildLink(b.docFolder, h.name); if (l) { h.url = l; n++; } } });
+    return n;
+  }
+
+  let ocrCancel = null;
+  $("ocrSkip").addEventListener("click", () => { if (ocrCancel) ocrCancel(); });
+  $("ocrDialog").addEventListener("cancel", (e) => { e.preventDefault(); if (ocrCancel) ocrCancel(); });
+  $("recognizeBtn").addEventListener("click", () => recognize());
+
+  async function recognize() {
+    const b = st.cur; if (!b || !b.image) return;
+    const dlg = $("ocrDialog"), status = $("ocrStatus"), bar = $("ocrBar");
+    let cancelled = false, worker = null;
+    ocrCancel = () => { cancelled = true; try { worker && worker.terminate(); } catch (e) {} dlg.close(); };
+    status.textContent = "Tekstherkenning laden…"; bar.style.width = "3%"; dlg.showModal();
+    try {
+      await loadTesseract();
+    } catch (e) {
+      dlg.close(); toast("Tekstherkenning kon niet worden geladen. Controleer je internetverbinding en probeer het opnieuw."); return;
+    }
+    if (cancelled) return;
+    try {
+      // Afbeelding op witte achtergrond tekenen (exports kunnen transparant zijn).
+      const W = b.imgW, H = b.imgH;
+      const bmpUrl = URL.createObjectURL(b.image);
+      const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = bmpUrl; });
+      const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+      const cx = cv.getContext("2d", { willReadFrequently: true });
+      cx.fillStyle = "#fff"; cx.fillRect(0, 0, W, H); cx.drawImage(im, 0, 0, W, H);
+      URL.revokeObjectURL(bmpUrl);
+      let ocrCv = cv, scale = 1;
+      const MAX = 5000;
+      if (Math.max(W, H) > MAX) {
+        scale = MAX / Math.max(W, H);
+        ocrCv = document.createElement("canvas"); ocrCv.width = Math.round(W * scale); ocrCv.height = Math.round(H * scale);
+        ocrCv.getContext("2d").drawImage(cv, 0, 0, ocrCv.width, ocrCv.height);
+      }
+      const labels = { "loading tesseract core": "Tekstherkenning laden…", "initializing tesseract": "Voorbereiden…",
+        "loading language traineddata": "Taalgegevens laden…", "initializing api": "Voorbereiden…", "recognizing text": "Bord lezen…" };
+      worker = await Tesseract.createWorker("eng", 1, { logger: (m) => {
+        if (cancelled) return;
+        status.textContent = labels[m.status] || "Bezig…";
+        const base = m.status === "recognizing text" ? 20 : 5;
+        bar.style.width = Math.round(base + (m.status === "recognizing text" ? 75 : 15) * (m.progress || 0)) + "%";
+      } });
+      if (cancelled) return;
+      await worker.setParameters({ tessedit_pageseg_mode: "11" }); // losse tekst verspreid over het bord
+      const { data } = await worker.recognize(ocrCv);
+      await worker.terminate(); worker = null;
+      if (cancelled) return;
+      status.textContent = "Documentkaarten zoeken…"; bar.style.width = "97%";
+
+      const px = cx.getImageData(0, 0, W, H).data;
+      const found = findFileNames(data, scale);
+      let added = 0, linked = 0;
+      found.forEach((f) => {
+        const card = cardAround(px, W, H, f.bb);
+        let r;
+        if (card) r = card;
+        else { // geen kaartrand gevonden: ruim gebied rond de naam
+          const lh = f.bb.y1 - f.bb.y0;
+          r = { x0: f.bb.x0 - lh * 0.6, y0: f.bb.y0 - lh * 0.6, x1: Math.max(f.bb.x1, f.bb.x0 + lh * 8) + lh * 0.6, y1: f.bb.y1 + lh * 3 };
+        }
+        const h = { id: uid(), name: f.name, url: "",
+          x: clamp(r.x0 / W, 0, 1), y: clamp(r.y0 / H, 0, 1), w: 0, h: 0, auto: true };
+        h.w = clamp(r.x1 / W, 0, 1) - h.x; h.h = clamp(r.y1 / H, 0, 1) - h.y;
+        if (h.w <= 0 || h.h <= 0) return;
+        if (b.hotspots.some((o) => overlap(o, h) > 0.5)) return; // bestaat al
+        if (b.docFolder) { h.url = buildLink(b.docFolder, h.name); if (h.url) linked++; }
+        b.hotspots.push(h); added++;
+      });
+      await save(); renderHotspots(); dlg.close();
+      if (!found.length) toast("Geen bestandsnamen gevonden op het bord. Je kunt gebieden met de hand toevoegen via Koppelingen bewerken.");
+      else if (!added) toast("Geen nieuwe documenten gevonden. Alle herkende documenten waren al gekoppeld.");
+      else if (linked === added) toast(`${added} ${added === 1 ? "document" : "documenten"} gevonden en gekoppeld. Klik erop om te openen.`);
+      else if (!b.docFolder) toast(`${added} ${added === 1 ? "document" : "documenten"} gevonden. Vul bij Bordinstellingen de documentmap in om ze automatisch te koppelen.`);
+      else toast(`${added} gevonden, ${linked} gekoppeld. Controleer de overige via Koppelingen bewerken.`);
+    } catch (e) {
+      try { worker && worker.terminate(); } catch (x) {}
+      if (!cancelled) { dlg.close(); toast("Herkennen is niet gelukt. Je kunt gebieden met de hand toevoegen via Koppelingen bewerken."); }
+    } finally { ocrCancel = null; }
+  }
+
+  /* ---------------- Start ---------------- */
+  (async function init() {
+    await openDb();
+    if (!db) $("storageHint").hidden = false;
+    st.boards = await dbAll();
+    if (!st.boards.length) { const nb = newBoardObj("Mijn bord"); st.boards.push(nb); await dbPut(nb); }
+    const w = parseInt(ls.get("wbc.vw"), 10); if (w) viewer.style.width = w + "px";
+    if (ls.get("wbc.pins") === "0") { $("showPins").checked = false; stage.classList.add("hide-pins"); }
+    setViewer(false);
+    selectBoard(ls.get("wbc.last"));
+  })();
 })();
 </script>
 </body>
