@@ -1,0 +1,42 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "d5c7f750-d4a4-4eac-8dfb-35c4bdcf942d",
+  "developer": {
+    "name": "Sandino",
+    "websiteUrl": "https://JOUW-DOMEIN.example",
+    "privacyUrl": "https://JOUW-DOMEIN.example/privacy",
+    "termsOfUseUrl": "https://JOUW-DOMEIN.example/voorwaarden"
+  },
+  "name": {
+    "short": "Whiteboard + Document",
+    "full": "Whiteboard met documentviewer"
+  },
+  "description": {
+    "short": "Microsoft Whiteboard met een inklapbare documentviewer ernaast.",
+    "full": "Toont je Microsoft Whiteboard en ernaast een documentviewer voor Word, Excel, PowerPoint en PDF uit OneDrive of SharePoint. Sluit de viewer om het whiteboard op volle breedte te zien."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#5B5FC7",
+  "staticTabs": [
+    {
+      "entityId": "whiteboardDocument",
+      "name": "Whiteboard",
+      "contentUrl": "https://JOUW-DOMEIN.example/index.html",
+      "websiteUrl": "https://JOUW-DOMEIN.example/index.html",
+      "scopes": [
+        "personal"
+      ]
+    }
+  ],
+  "validDomains": [
+    "JOUW-DOMEIN.example",
+    "*.sharepoint.com",
+    "whiteboard.cloud.microsoft",
+    "*.whiteboard.microsoft.com"
+  ]
+}

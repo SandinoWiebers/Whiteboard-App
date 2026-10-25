@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whiteboard + Document</title>
+<script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f5;
+    --surface: #ffffff;
+    --line: #e0e0e0;
+    --text: #242424;
+    --muted: #616161;
+    --accent: #5b5fc7;
+    --accent-soft: #e8ebfa;
+    --warn-bg: #fff4ce;
+    --warn-text: #5c4400;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: #1f1f1f;
+    --surface: #292929;
+    --line: #3d3d3d;
+    --text: #ffffff;
+    --muted: #adadad;
+    --accent: #7f85f5;
+    --accent-soft: #2f2f4a;
+    --warn-bg: #463100;
+    --warn-text: #ffe8a3;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1f1f1f; --surface: #292929; --line: #3d3d3d; --text: #ffffff;
+      --muted: #adadad; --accent: #7f85f5; --accent-soft: #2f2f4a;
+      --warn-bg: #463100; --warn-text: #ffe8a3; color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+    font-size: 14px; color: var(--text); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Bovenbalk */
+  .bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .bar h1 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; white-space: nowrap; }
+  .bar .spacer { flex: 1; }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 4px;
+    padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  }
+  a.btn { text-decoration: none; color: var(--text); display: inline-block; }
+  .btn:hover { background: var(--accent-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.icon { padding: 5px 9px; }
+  input[type="url"] {
+    border: 1px solid var(--line); background: var(--bg); border-radius: 4px;
+    padding: 5px 10px; min-width: 0; flex: 1;
+  }
+
+  /* Werkruimte */
+  .workspace { flex: 1; display: flex; min-height: 0; position: relative; }
+  .board { flex: 1; min-width: 200px; display: flex; flex-direction: column; position: relative; }
+  .board iframe, .viewer iframe { flex: 1; width: 100%; border: 0; background: var(--surface); }
+
+  .notice {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 6px 12px; background: var(--warn-bg); color: var(--warn-text); font-size: 13px;
+  }
+  .notice a { color: inherit; font-weight: 600; }
+  .notice button { margin-left: auto; background: none; border: 0; cursor: pointer; color: inherit; font-size: 16px; }
+
+  .empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 24px; text-align: center; color: var(--muted);
+  }
+  .empty p { margin: 0; max-width: 46ch; line-height: 1.5; }
+  .empty .row { display: flex; gap: 8px; width: min(560px, 100%); }
+
+  /* Scheidingslijn om de breedte te verslepen */
+  .divider {
+    width: 6px; cursor: col-resize; background: var(--line); flex: none; position: relative;
+  }
+  .divider:hover, .divider.dragging { background: var(--accent); }
+
+  /* Viewer rechts */
+  .viewer {
+    width: 45%; min-width: 280px; max-width: 80%;
+    display: flex; flex-direction: column; background: var(--surface); flex: none;
+  }
+  .viewer-head {
+    display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line);
+  }
+  .viewer-head .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); padding: 4px 10px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .viewer-src { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+
+  /* Lipje om de viewer weer te openen */
+  .reopen {
+    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    writing-mode: vertical-rl; padding: 14px 6px; border: 1px solid var(--line); border-right: 0;
+    border-radius: 6px 0 0 6px; background: var(--surface); cursor: pointer; font-weight: 600;
+    color: var(--accent); box-shadow: -2px 0 8px rgba(0,0,0,.08);
+  }
+  .reopen:hover { background: var(--accent-soft); }
+
+  [hidden] { display: none !important; }
+  body.resizing iframe { pointer-events: none; }
+
+  @media (max-width: 700px) {
+    .workspace { flex-direction: column; }
+    .viewer { width: 100% !important; max-width: none; min-width: 0; height: 55%; }
+    .divider { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>Whiteboard</h1>
+  <button class="btn" id="changeBoard" hidden>Ander whiteboard</button>
+  <a class="btn" id="openBoardExternal" target="_blank" rel="noopener" hidden>Whiteboard in nieuw venster</a>
+  <span class="spacer"></span>
+  <button class="btn primary" id="toggleViewer" aria-controls="viewer" aria-expanded="false">Document tonen</button>
+</header>
+
+<main class="workspace" id="workspace">
+
+  <section class="board" aria-label="Whiteboard">
+    <div class="notice" id="boardNotice" hidden>
+      <span>Blijft het whiteboard leeg of zie je een foutmelding? Microsoft staat insluiten dan niet toe in deze omgeving.</span>
+      <a id="noticeLink" target="_blank" rel="noopener">Open het whiteboard apart</a>
+      <button id="noticeClose" aria-label="Melding sluiten">×</button>
+    </div>
+
+    <div class="empty" id="boardEmpty">
+      <p>Plak de link van je Microsoft Whiteboard. Die vind je in Whiteboard via <strong>Delen</strong> en dan <strong>Link kopiëren</strong>.</p>
+      <div class="row" id="boardForm">
+        <input type="url" id="boardInput" placeholder="https://whiteboard.cloud.microsoft/…" required aria-label="Link naar whiteboard">
+        <button class="btn primary" type="button" id="boardLoad">Whiteboard laden</button>
+      </div>
+    </div>
+
+    <iframe id="boardFrame" title="Microsoft Whiteboard" hidden
+      allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+  </section>
+
+  <div class="divider" id="divider" role="separator" aria-orientation="vertical"
+       aria-label="Breedte van de viewer aanpassen" tabindex="0" hidden></div>
+
+  <aside class="viewer" id="viewer" aria-label="Documentviewer" hidden>
+    <div class="viewer-head">
+      <span class="title" id="docTitle">Document</span>
+      <div class="seg" role="group" aria-label="Modus">
+        <button id="modeView" aria-pressed="true">Bekijken</button>
+        <button id="modeEdit" aria-pressed="false">Bewerken</button>
+      </div>
+      <a class="btn icon" id="docExternal" target="_blank" rel="noopener" title="Openen in nieuw venster" aria-label="Openen in nieuw venster">↗</a>
+      <button class="btn icon" id="closeViewer" title="Viewer sluiten (Esc)" aria-label="Viewer sluiten">✕</button>
+    </div>
+    <div class="viewer-src" id="docForm">
+      <input type="url" id="docInput" placeholder="Link naar Word-, Excel-, PowerPoint- of PDF-bestand" required aria-label="Link naar document">
+      <button class="btn" type="button" id="docLoad">Openen</button>
+    </div>
+    <div class="empty" id="docEmpty">
+      <p>Plak hierboven de link naar een bestand in OneDrive, SharePoint of Teams. Kopieer die via <strong>Delen</strong> en dan <strong>Link kopiëren</strong>, of open het bestand in de browser en kopieer de adresbalk.</p>
+    </div>
+    <iframe id="docFrame" title="Document" hidden allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+  </aside>
+
+  <button class="reopen" id="reopen" hidden aria-controls="viewer">Document</button>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  /* ---------- Teams-koppeling (werkt ook gewoon in een browser) ---------- */
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = (t === "dark" || t === "contrast") ? "dark" : "light";
+  }
+  if (window.microsoftTeams && microsoftTeams.app) {
+    microsoftTeams.app.initialize().then(() => {
+      microsoftTeams.app.getContext().then((ctx) => applyTheme(ctx.app && ctx.app.theme));
+      microsoftTeams.app.registerOnThemeChangeHandler(applyTheme);
+      microsoftTeams.app.notifySuccess();
+    }).catch(() => { /* buiten Teams: gewoon doorgaan */ });
+  }
+
+  /* ---------- Whiteboard ---------- */
+  function boardEmbedUrl(raw) {
+    try {
+      const u = new URL(raw);
+      if (/whiteboard/i.test(u.hostname)) {
+        if (!u.searchParams.has("embed")) u.searchParams.set("embed", "1");
+        if (!u.searchParams.has("isOpenInTab")) u.searchParams.set("isOpenInTab", "1");
+      }
+      return u.toString();
+    } catch (e) { return raw; }
+  }
+
+  function loadBoard(raw) {
+    store.set("wb.board", raw);
+    $("boardFrame").src = boardEmbedUrl(raw);
+    $("boardFrame").hidden = false;
+    $("boardEmpty").hidden = true;
+    $("changeBoard").hidden = false;
+    $("openBoardExternal").href = raw;
+    $("openBoardExternal").hidden = false;
+    $("noticeLink").href = raw;
+    if (store.get("wb.noticeDismissed") !== "1") $("boardNotice").hidden = false;
+  }
+
+  function isUrl(v) { try { const u = new URL(v); return u.protocol === "https:"; } catch (e) { return false; } }
+  function submitBoard() {
+    const v = $("boardInput").value.trim();
+    if (!isUrl(v)) { $("boardInput").setCustomValidity("Plak een volledige link die begint met https://"); $("boardInput").reportValidity(); return; }
+    $("boardInput").setCustomValidity("");
+    loadBoard(v);
+  }
+  $("boardLoad").addEventListener("click", submitBoard);
+  $("boardInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitBoard(); } });
+  $("boardInput").addEventListener("input", () => $("boardInput").setCustomValidity(""));
+  $("changeBoard").addEventListener("click", () => {
+    $("boardFrame").hidden = true; $("boardFrame").src = "about:blank";
+    $("boardEmpty").hidden = false; $("changeBoard").hidden = true; $("openBoardExternal").hidden = true;
+    $("boardNotice").hidden = true;
+    $("boardInput").value = store.get("wb.board") || ""; $("boardInput").focus();
+  });
+  $("noticeClose").addEventListener("click", () => { $("boardNotice").hidden = true; store.set("wb.noticeDismissed", "1"); });
+
+  /* ---------- Viewer openen en sluiten ---------- */
+  let viewerOpen = false;
+  function setViewer(open) {
+    viewerOpen = open;
+    $("viewer").hidden = !open;
+    $("divider").hidden = !open;
+    $("reopen").hidden = open;
+    $("toggleViewer").textContent = open ? "Document verbergen" : "Document tonen";
+    $("toggleViewer").setAttribute("aria-expanded", String(open));
+    store.set("wb.viewerOpen", open ? "1" : "0");
+    if (open && !$("docFrame").src) $("docInput").focus();
+  }
+  $("toggleViewer").addEventListener("click", () => setViewer(!viewerOpen));
+  $("closeViewer").addEventListener("click", () => setViewer(false));
+  $("reopen").addEventListener("click", () => setViewer(true));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && viewerOpen && document.activeElement.tagName !== "INPUT") setViewer(false);
+  });
+
+  /* ---------- Document laden ---------- */
+  let docRaw = "", mode = "view";
+
+  function docUrl(raw, m) {
+    try {
+      const u = new URL(raw);
+      // SharePoint/OneDrive Office-bestanden (Doc.aspx, WopiFrame.aspx): modus via 'action'
+      if (/\.aspx$/i.test(u.pathname) || u.searchParams.has("sourcedoc")) {
+        u.searchParams.set("action", m === "edit" ? "edit" : "embedview");
+        return u.toString();
+      }
+      return u.toString();
+    } catch (e) { return raw; }
+  }
+
+  function guessTitle(raw) {
+    try {
+      const u = new URL(raw);
+      const f = u.searchParams.get("file");
+      if (f) return decodeURIComponent(f);
+      const last = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() || "");
+      return /\.(docx?|xlsx?|pptx?|pdf)$/i.test(last) ? last : "Document";
+    } catch (e) { return "Document"; }
+  }
+
+  function loadDoc(raw) {
+    docRaw = raw;
+    store.set("wb.doc", raw);
+    $("docFrame").src = docUrl(raw, mode);
+    $("docFrame").hidden = false;
+    $("docEmpty").hidden = true;
+    $("docTitle").textContent = guessTitle(raw);
+    $("docExternal").href = docUrl(raw, "edit");
+  }
+
+  function setMode(m) {
+    mode = m;
+    $("modeView").setAttribute("aria-pressed", String(m === "view"));
+    $("modeEdit").setAttribute("aria-pressed", String(m === "edit"));
+    if (docRaw) $("docFrame").src = docUrl(docRaw, m);
+  }
+  $("modeView").addEventListener("click", () => setMode("view"));
+  $("modeEdit").addEventListener("click", () => setMode("edit"));
+  function submitDoc() {
+    const v = $("docInput").value.trim();
+    if (!isUrl(v)) { $("docInput").setCustomValidity("Plak een volledige link die begint met https://"); $("docInput").reportValidity(); return; }
+    $("docInput").setCustomValidity("");
+    loadDoc(v);
+  }
+  $("docLoad").addEventListener("click", submitDoc);
+  $("docInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submitDoc(); } });
+  $("docInput").addEventListener("input", () => $("docInput").setCustomValidity(""));
+
+  /* ---------- Breedte verslepen ---------- */
+  const divider = $("divider"), viewer = $("viewer"), ws = $("workspace");
+  function setWidth(px) {
+    const max = ws.clientWidth - 220;
+    const w = Math.max(280, Math.min(px, max));
+    viewer.style.width = w + "px";
+    store.set("wb.viewerWidth", String(w));
+  }
+  divider.addEventListener("pointerdown", (e) => {
+    divider.setPointerCapture(e.pointerId);
+    divider.classList.add("dragging"); document.body.classList.add("resizing");
+  });
+  divider.addEventListener("pointermove", (e) => {
+    if (!divider.classList.contains("dragging")) return;
+    setWidth(ws.getBoundingClientRect().right - e.clientX);
+  });
+  divider.addEventListener("pointerup", () => {
+    divider.classList.remove("dragging"); document.body.classList.remove("resizing");
+  });
+  divider.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") setWidth(viewer.offsetWidth + 40);
+    if (e.key === "ArrowRight") setWidth(viewer.offsetWidth - 40);
+  });
+
+  /* ---------- Vorige sessie herstellen ---------- */
+  const savedBoard = store.get("wb.board");
+  if (savedBoard) loadBoard(savedBoard);
+  const savedDoc = store.get("wb.doc");
+  if (savedDoc) { $("docInput").value = savedDoc; loadDoc(savedDoc); }
+  const savedW = parseInt(store.get("wb.viewerWidth"), 10);
+  if (savedW) viewer.style.width = savedW + "px";
+  setViewer(store.get("wb.viewerOpen") === "1");
+})();
+</script>
+</body>
+</html>
