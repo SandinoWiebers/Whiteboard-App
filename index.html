@@ -477,7 +477,11 @@
     openWhiteboard(u);
   });
   $("setupUrl").addEventListener("change", () => { if (st.cur) { st.cur.wbUrl = $("setupUrl").value.trim(); save(); } });
-  $("setupFolder").addEventListener("change", () => { if (st.cur) { st.cur.docFolder = $("setupFolder").value.trim(); save(); } });
+  $("setupFolder").addEventListener("change", () => {
+    const v = $("setupFolder").value.trim();
+    if (v && !parseFolder(v)) { toast("Dit is geen documentmap. Open de map waarin je bestanden staan en kopieer de adresbalk."); return; }
+    if (st.cur) { st.cur.docFolder = v; save(); }
+  });
 
   /* ---------------- Zoomen en verschuiven ---------------- */
   function applyView() {
@@ -698,7 +702,7 @@
     st.cur.name = $("setName").value.trim() || st.cur.name;
     st.cur.wbUrl = $("setUrl").value.trim();
     const folder = $("setFolder").value.trim();
-    if (folder && !parseFolder(folder)) { $("setFolder").setCustomValidity("Kopieer de link uit de adresbalk van de map, niet een deellink."); $("setFolder").reportValidity(); return; }
+    if (folder && !parseFolder(folder)) { $("setFolder").setCustomValidity("Dit is geen documentmap. Open de map waarin je bestanden staan (bijvoorbeeld Gedeelde documenten) en kopieer dan de adresbalk. Een deellink of het adres van de site werkt niet."); $("setFolder").reportValidity(); return; }
     st.cur.docFolder = folder;
     const n = autoLinkAll();
     save(); renderBoardSelect(); renderHotspots(); $("setDialog").close();
@@ -893,6 +897,8 @@
       path = path.replace(/\/Forms\/[^/]+\.aspx$/i, "").replace(/\/[^/]+\.aspx$/i, "").replace(/\/+$/, "");
       if (!path) return null;
       const site = (path.match(/^\/(?:sites|teams)\/[^/]+/i) || [""])[0];
+      // Alleen het site-adres (of een sitepagina) is geen documentmap.
+      if (path.toLowerCase() === site.toLowerCase() || /\/(SitePages|_layouts)(\/|$)/i.test(path)) return null;
       return { origin: u.origin, path, site };
     } catch (e) { return null; }
   }
