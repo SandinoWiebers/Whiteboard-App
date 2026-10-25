@@ -407,6 +407,7 @@
   function selectBoard(id) {
     st.cur = st.boards.find((b) => b.id === id) || st.boards[0];
     ls.set("wbc.last", st.cur.id);
+    if (autoLinkAll()) save();
     renderBoardSelect();
     renderStage();
   }
@@ -667,6 +668,7 @@
     const url = $("hsUrl").value.trim();
     if (url && !validUrl(url)) { $("hsUrl").setCustomValidity("Plak een volledige link die begint met https://"); $("hsUrl").reportValidity(); return; }
     editing.h.name = $("hsName").value.trim() || "Document";
+    if (url !== editing.h.url) editing.h.autoLinked = false;
     editing.h.url = url; editing.isNew = false;
     save(); renderHotspots(); closeHs(false);
   });
@@ -896,14 +898,21 @@
   }
   function buildLink(folder, name) {
     const f = parseFolder(folder || ""); if (!f) return "";
-    const file = f.path + "/" + name;
-    if (/\.pdf$/i.test(name)) return f.origin + encodeURI(file);
-    return f.origin + f.site + "/_layouts/15/Doc.aspx?sourcedoc=" + encodeURIComponent(file) +
-           "&file=" + encodeURIComponent(name) + "&action=embedview";
+    // Direct pad naar het bestand; ?web=1 opent Office-bestanden in Office voor het web.
+    const file = encodeURI(f.path + "/" + name).replace(/#/g, "%23");
+    return f.origin + file + (/\.pdf$/i.test(name) ? "" : "?web=1");
   }
+  // Koppelt lege gebieden, en maakt koppelingen die de app eerder zelf maakte opnieuw
+  // (bijvoorbeeld na het wijzigen van de documentmap of de oude linkvorm).
   function autoLinkAll() {
     let n = 0; const b = st.cur; if (!b || !b.docFolder) return 0;
-    b.hotspots.forEach((h) => { if (!h.url && looksLikeFile(h.name)) { const l = buildLink(b.docFolder, h.name); if (l) { h.url = l; n++; } } });
+    b.hotspots.forEach((h) => {
+      const mine = h.auto && (!h.url || h.autoLinked || /_layouts\/15\/Doc\.aspx\?sourcedoc=%2F/i.test(h.url));
+      if ((!h.url || mine) && looksLikeFile(h.name)) {
+        const l = buildLink(b.docFolder, h.name);
+        if (l && l !== h.url) { h.url = l; h.autoLinked = true; n++; }
+      }
+    });
     return n;
   }
 
@@ -971,7 +980,7 @@
         h.w = clamp(r.x1 / W, 0, 1) - h.x; h.h = clamp(r.y1 / H, 0, 1) - h.y;
         if (h.w <= 0 || h.h <= 0) return;
         if (b.hotspots.some((o) => overlap(o, h) > 0.5)) return; // bestaat al
-        if (b.docFolder) { h.url = buildLink(b.docFolder, h.name); if (h.url) linked++; }
+        if (b.docFolder) { h.url = buildLink(b.docFolder, h.name); if (h.url) { h.autoLinked = true; linked++; } }
         b.hotspots.push(h); added++;
       });
       await save(); renderHotspots(); dlg.close();
