@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard Converter 1.5</title>
+<title>Whiteboard Converter 1.6</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
 <style>
   :root {
@@ -233,11 +233,7 @@
   <aside class="viewer" id="viewer" aria-label="Documentviewer" hidden>
     <div class="viewer-head">
       <span class="title" id="docTitle">Document</span>
-      <div class="seg" role="group" aria-label="Weergave">
-        <button id="docView" aria-pressed="true">Bekijken</button>
-        <button id="docEdit" aria-pressed="false">Bewerken</button>
-      </div>
-      <a class="btn icon" id="docExternal" target="_blank" rel="noopener" title="Openen in nieuw venster" aria-label="Openen in nieuw venster">↗</a>
+      <button class="btn primary" id="docEdit" title="Opent het document om te bewerken in een eigen venster">Bewerken ↗</button>
       <button class="btn icon" id="closeViewer" title="Viewer sluiten (Esc)" aria-label="Viewer sluiten">✕</button>
     </div>
     <div class="empty" id="docEmpty">Klik op een document op het bord om het hier te openen.</div>
@@ -297,7 +293,7 @@
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.5</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.6</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -348,9 +344,11 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   /* ---------------- Teams ---------------- */
+  let inTeams = false;
   function applyTheme(t) { document.documentElement.dataset.theme = (t === "dark" || t === "contrast") ? "dark" : "light"; }
   if (window.microsoftTeams && microsoftTeams.app) {
     microsoftTeams.app.initialize().then(() => {
+      inTeams = true;
       microsoftTeams.app.getContext().then((c) => applyTheme(c.app && c.app.theme));
       microsoftTeams.app.registerOnThemeChangeHandler(applyTheme);
       microsoftTeams.app.notifySuccess();
@@ -766,7 +764,7 @@
   $("boardSelect").addEventListener("change", (e) => selectBoard(e.target.value));
 
   /* ---------------- Viewer ---------------- */
-  let viewerOpen = false, docRaw = "", docMode = "view";
+  let viewerOpen = false, docRaw = "";
   function setViewer(open) {
     viewerOpen = open;
     $("viewer").hidden = !open; $("divider").hidden = !open; $("reopen").hidden = open;
@@ -795,19 +793,30 @@
   }
   function loadDoc(raw, title) {
     docRaw = raw;
-    $("docFrame").src = docUrl(raw, docMode);
+    $("docFrame").src = docUrl(raw, "view");
     $("docFrame").hidden = false; $("docEmpty").hidden = true;
     $("docTitle").textContent = title || "Document";
-    $("docExternal").href = docUrl(raw, "edit");
   }
-  function setDocMode(m) {
-    docMode = m;
-    $("docView").setAttribute("aria-pressed", String(m === "view"));
-    $("docEdit").setAttribute("aria-pressed", String(m === "edit"));
-    if (docRaw) $("docFrame").src = docUrl(docRaw, m);
+  // Bewerken kan niet binnen de viewer (Microsoft blokkeert dat), dus in een eigen venster.
+  let editOpen = false;
+  function openEdit() {
+    if (!docRaw) { toast("Klik eerst op een document op het bord."); return; }
+    const url = docUrl(docRaw, "edit");
+    const fallback = () => window.open(url, "_blank", "noopener");
+    if (inTeams && microsoftTeams.app.openLink) microsoftTeams.app.openLink(url).catch(fallback);
+    else fallback();
+    editOpen = true;
+    toast("Document geopend om te bewerken. Als je terugkomt, ververst de viewer vanzelf.");
   }
-  $("docView").addEventListener("click", () => setDocMode("view"));
-  $("docEdit").addEventListener("click", () => setDocMode("edit"));
+  $("docEdit").addEventListener("click", openEdit);
+  function refreshAfterEdit() {
+    if (!editOpen || !docRaw || document.visibilityState === "hidden") return;
+    editOpen = false;
+    $("docFrame").src = "about:blank";
+    setTimeout(() => { $("docFrame").src = docUrl(docRaw, "view"); }, 50);
+  }
+  window.addEventListener("focus", refreshAfterEdit);
+  document.addEventListener("visibilitychange", refreshAfterEdit);
 
   const divider = $("divider"), viewer = $("viewer"), ws = $("workspace");
   function setWidth(px) { const w = clamp(px, 280, ws.clientWidth - 220); viewer.style.width = w + "px"; ls.set("wbc.vw", String(w)); }
