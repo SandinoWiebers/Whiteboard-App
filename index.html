@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard Converter 1.6</title>
+<title>Whiteboard Converter 1.7</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
+<script src="jszip.min.js"></script>
 <style>
   :root {
     --bg: #f0f0f0; --surface: #ffffff; --line: #e0e0e0; --text: #242424; --muted: #616161;
@@ -216,10 +217,10 @@
         <div class="step">
           <div class="n">3</div>
           <div>
-            <h3>Upload de afbeelding</h3>
+            <h3>Upload een afbeelding of ZIP</h3>
             <div class="drop" id="drop">
-              <p style="margin:0 0 10px">Sleep het PNG-bestand hierheen, of</p>
-              <button class="btn primary" type="button" id="setupPick">Afbeelding kiezen</button>
+              <p style="margin:0 0 10px">Sleep een PNG-, JPG-, SVG- of ZIP-bestand hierheen, of</p>
+              <button class="btn primary" type="button" id="setupPick">Afbeelding / ZIP kiezen</button>
             </div>
           </div>
         </div>
@@ -242,8 +243,8 @@
   <button class="reopen" id="reopen" aria-controls="viewer">Document</button>
 </main>
 
-<input type="file" id="imgFile" accept="image/png,image/jpeg,image/svg+xml" hidden>
-<input type="file" id="projFile" accept="application/json,.json" hidden>
+<input type="file" id="imgFile" accept="image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg,.zip,application/zip" hidden>
+<input type="file" id="projFile" accept="application/json,.json,.zip,application/zip" hidden>
 
 <!-- Koppeling bewerken -->
 <dialog id="hsDialog" aria-labelledby="hsTitle">
@@ -283,17 +284,18 @@
     </label>
     <hr>
     <label>Delen met collega's
-      <span>Exporteer het bord met alle koppelingen als één bestand. Een collega importeert dat bestand in zijn eigen app.</span>
+      <span>ZIP is aanbevolen voor grote borden: afbeelding in originele kwaliteit plus koppelingen. Bestaande JSON-projecten blijven werken.</span>
     </label>
     <div class="row">
-      <button class="btn" type="button" id="setExport">Project exporteren</button>
+      <button class="btn" type="button" id="setExport">Project exporteren (JSON)</button>
+      <button class="btn primary" type="button" id="setExportZip">Project exporteren (ZIP)</button>
       <button class="btn" type="button" id="setImport">Project importeren</button>
     </div>
     <hr>
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.6</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.7</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -311,7 +313,7 @@
     <button class="btn" type="button" id="refOpenWb">Openen in Microsoft Whiteboard</button>
     <span class="spacer"></span>
     <button class="btn" type="button" id="refCancel">Annuleren</button>
-    <button class="btn primary" type="button" id="refPick">Nieuwe afbeelding kiezen</button>
+    <button class="btn primary" type="button" id="refPick">Afbeelding / ZIP kiezen</button>
   </div>
 </dialog>
 
@@ -445,7 +447,7 @@
     });
   }
   async function importImage(file) {
-    if (!file || !/^image\//.test(file.type)) { toast("Kies een PNG-, JPG- of SVG-afbeelding."); return; }
+    if (!file || !isImageFile(file.name, file.type)) { toast("Kies een PNG-, JPG- of SVG-afbeelding."); return; }
     let size;
     try { size = await readSize(file); } catch (e) { toast("Deze afbeelding kan niet worden geopend."); return; }
     const b = st.cur, had = !!b.image;
@@ -459,12 +461,12 @@
     renderStage();
     recognize();
   }
-  $("imgFile").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importImage(f); });
+  $("imgFile").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importBoardFile(f); });
   $("setupPick").addEventListener("click", () => $("imgFile").click());
   const drop = $("drop");
   ["dragenter", "dragover"].forEach((t) => stage.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((t) => stage.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
-  stage.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) importImage(f); });
+  stage.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) importBoardFile(f); });
 
   function openWhiteboard(url) {
     if (!/^https:\/\//i.test(url || "")) { toast("Vul eerst de link van je Microsoft Whiteboard in."); return; }
@@ -737,19 +739,111 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast("Project geëxporteerd. Lukt downloaden in Teams niet, open de app dan in je browser.");
   });
+  /* ---------------- ZIP met ongewijzigde originele afbeeldingen ---------------- */
+  const isZipFile = (name) => /\.zip$/i.test(name || "");
+  const isImageFile = (name, type) => /\.(png|jpe?g|svg)$/i.test(name || "") || /^image\/(png|jpeg|svg\+xml)$/.test(type || "");
+  const mimeFor = (name) => /\.svg$/i.test(name) ? "image/svg+xml" : /\.jpe?g$/i.test(name) ? "image/jpeg" : "image/png";
+  function safeFilename(name) { return (name || "bord").replace(/[^a-z0-9_ -]/gi, "_").trim() || "bord"; }
+  function downloadBlob(blob, filename) {
+    const u = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 10000);
+  }
+  function makeImportedBoard(d, imageBlob) {
+    const nb = newBoardObj(d.name || "Geïmporteerd bord");
+    nb.wbUrl = typeof d.wbUrl === "string" ? d.wbUrl : "";
+    nb.docFolder = typeof d.docFolder === "string" ? d.docFolder : "";
+    nb.imgW = Number(d.imgW) || 0; nb.imgH = Number(d.imgH) || 0;
+    nb.hotspots = Array.isArray(d.hotspots) ? d.hotspots.filter(h => h && [h.x,h.y,h.w,h.h].every(v => Number.isFinite(Number(v))))
+      .map(h => ({ id: uid(), x: +h.x, y: +h.y, w: +h.w, h: +h.h, name: String(h.name || ""), url: String(h.url || "") })) : [];
+    nb.image = imageBlob;
+    return nb;
+  }
+  async function addImportedBoard(nb) {
+    if (nb.image && (!nb.imgW || !nb.imgH)) {
+      const size = await readSize(nb.image); nb.imgW = size.w; nb.imgH = size.h;
+    }
+    st.boards.push(nb); await dbPut(nb);
+    $("setDialog").close(); selectBoard(nb.id);
+    toast("Project geïmporteerd met afbeelding en koppelingen.");
+  }
+  async function parseZip(file, asProject) {
+    if (!window.JSZip) throw new Error("ZIP-module ontbreekt. Controleer of jszip.min.js is geüpload.");
+    const zip = await JSZip.loadAsync(file, {checkCRC32: true});
+    const entries = Object.values(zip.files).filter(e => !e.dir && !e.name.startsWith("__MACOSX/") && !e.name.split("/").some(x => x.startsWith(".")));
+    const info = entries.find(e => /(^|\/)project\.json$/i.test(e.name));
+    let d = null;
+    if (info) {
+      d = JSON.parse(await info.async("string"));
+      if (d.format !== "whiteboard-converter") throw new Error("Ongeldig project.json in ZIP.");
+    }
+    if (asProject && !d) throw new Error("Geen project.json in deze ZIP. Importeer de ZIP via 'Afbeelding / ZIP kiezen' om een afbeelding te gebruiken.");
+    const imageEntries = entries.filter(e => isImageFile(e.name));
+    let chosen = null;
+    if (d && d.imageFile) {
+      chosen = entries.find(e => e.name === d.imageFile);
+      if (!chosen || !isImageFile(chosen.name)) throw new Error("Afbeelding uit project.json ontbreekt.");
+    } else if (imageEntries.length === 1) chosen = imageEntries[0];
+    else if (imageEntries.length > 1) {
+      // Multiple images can form unrelated documents: never silently merge them into one board.
+      const options = imageEntries.map((e, i) => `${i+1}. ${e.name}`).join("\n");
+      const answer = prompt("Meerdere afbeeldingen gevonden. Welke wil je als whiteboard gebruiken?\n" + options + "\n\nVul het nummer in (Annuleren = niets importeren):", "1");
+      if (answer === null) return null;
+      const n = Number(answer);
+      if (!Number.isInteger(n) || n < 1 || n > imageEntries.length) throw new Error("Ongeldige afbeeldingskeuze.");
+      chosen = imageEntries[n - 1];
+    }
+    if (!chosen && d && typeof d.image === "string") {
+      // Supports older project.json archives storing a base64 image.
+      return { d, blob: dataUrlToBlob(d.image) };
+    }
+    if (!chosen) throw new Error("Geen PNG-, JPG- of SVG-afbeelding in ZIP gevonden.");
+    const bytes = await chosen.async("uint8array");
+    return { d, blob: new Blob([bytes], {type: mimeFor(chosen.name)}), fileName: chosen.name };
+  }
+  async function importBoardFile(f) {
+    if (!isZipFile(f.name)) return importImage(f);
+    try {
+      const result = await parseZip(f, false);
+      if (!result) return;
+      if (result.d) {
+        await addImportedBoard(makeImportedBoard(result.d, result.blob));
+      } else {
+        // An image-only ZIP replaces the current board, preserving existing hotspots.
+        await importImage(new File([result.blob], result.fileName, {type: result.blob.type}));
+      }
+    } catch (err) { toast("ZIP-import mislukt: " + (err.message || "onbekende fout")); }
+  }
+  $("setExportZip").addEventListener("click", async () => {
+    try {
+      if (!window.JSZip) throw new Error("ZIP-module ontbreekt.");
+      const b = st.cur, zip = new JSZip();
+      const ext = b.image && /svg/.test(b.image.type) ? "svg" : b.image && /jpe?g/.test(b.image.type) ? "jpg" : "png";
+      const imageFile = b.image ? "images/whiteboard." + ext : null;
+      zip.file("project.json", JSON.stringify({format:"whiteboard-converter",version:2,name:b.name,
+        wbUrl:b.wbUrl,docFolder:b.docFolder||"",imgW:b.imgW,imgH:b.imgH,hotspots:b.hotspots,imageFile},null,2));
+      if (b.image) zip.file(imageFile, b.image); // byte-for-byte original, no canvas conversion
+      const blob = await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:3}});
+      downloadBlob(blob, safeFilename(b.name) + ".whiteboard.zip");
+      toast("ZIP-project geëxporteerd zonder afbeelding opnieuw te comprimeren.");
+    } catch (err) { toast("ZIP-export mislukt: " + (err.message || "onbekende fout")); }
+  });
   $("setImport").addEventListener("click", () => $("projFile").click());
   $("projFile").addEventListener("change", async (e) => {
     const f = e.target.files[0]; e.target.value = ""; if (!f) return;
     try {
-      const d = JSON.parse(await f.text());
-      if (d.format !== "whiteboard-converter") throw new Error();
-      const nb = newBoardObj(d.name || "Geïmporteerd bord");
-      nb.wbUrl = d.wbUrl || ""; nb.docFolder = d.docFolder || ""; nb.imgW = d.imgW || 0; nb.imgH = d.imgH || 0;
-      nb.hotspots = Array.isArray(d.hotspots) ? d.hotspots.map((h) => ({ id: uid(), x: +h.x, y: +h.y, w: +h.w, h: +h.h, name: String(h.name || ""), url: String(h.url || "") })) : [];
-      nb.image = d.image ? dataUrlToBlob(d.image) : null;
-      st.boards.push(nb); await dbPut(nb);
-      $("setDialog").close(); selectBoard(nb.id); toast("Project geïmporteerd als nieuw bord.");
-    } catch (err) { toast("Dit bestand is geen geëxporteerd project van deze app."); }
+      let nb;
+      if (isZipFile(f.name)) {
+        const result = await parseZip(f, true);
+        if (!result) return;
+        nb = makeImportedBoard(result.d, result.blob);
+      } else {
+        const d = JSON.parse(await f.text());
+        if (d.format !== "whiteboard-converter") throw new Error("Onbekend projectformaat.");
+        nb = makeImportedBoard(d, d.image ? dataUrlToBlob(d.image) : null);
+      }
+      await addImportedBoard(nb);
+    } catch (err) { toast("Projectimport mislukt: " + (err.message || "ongeldig bestand")); }
   });
 
   /* ---------------- Verversen en nieuw bord ---------------- */
