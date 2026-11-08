@@ -504,13 +504,13 @@
     const b = st.cur; if (!b || !b.imgW) return;
     const r = stage.getBoundingClientRect();
     const s = Math.min((r.width - 48) / b.imgW, (r.height - 48) / b.imgH);
-    st.v.s = clamp(s, 0.02, 8);
+    st.v.s = clamp(s, 0.02, 16);
     st.v.x = (r.width - b.imgW * st.v.s) / 2;
     st.v.y = (r.height - b.imgH * st.v.s) / 2;
     applyView();
   }
   function zoomAt(mx, my, factor) {
-    const v = st.v, ns = clamp(v.s * factor, 0.02, 8), k = ns / v.s;
+    const v = st.v, ns = clamp(v.s * factor, 0.02, 16), k = ns / v.s;
     v.x = mx - (mx - v.x) * k; v.y = my - (my - v.y) * k; v.s = ns; applyView();
   }
   function zoomCenter(f) { const r = stage.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); }
