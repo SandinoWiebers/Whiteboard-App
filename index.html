@@ -68,6 +68,7 @@
   .stage.edit { cursor: crosshair; }
   .stage.panning, .stage.space { cursor: grabbing; }
   .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --s: 1; }
+  .world iframe.html-board { display:block; border:0; background:#fff; pointer-events:none; user-select:none; }
   .world img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none;
                box-shadow: 0 0 0 1px var(--line); background: #fff; }
 
@@ -180,7 +181,7 @@
 
 <main class="workspace" id="workspace">
   <section class="stage" id="stage" aria-label="Whiteboard">
-    <div class="world" id="world"><img id="boardImg" alt="Geëxporteerd whiteboard"></div>
+    <div class="world" id="world"><img id="boardImg" alt="Geëxporteerd whiteboard"><iframe id="boardHtml" class="html-board" title="Origineel Microsoft Whiteboard HTML" sandbox="" referrerpolicy="no-referrer" hidden></iframe></div>
     <div class="zoom" id="zoomBar" hidden>
       <button class="btn icon" id="zoomOut" aria-label="Uitzoomen">−</button>
       <span id="zoomLabel">100%</span>
@@ -219,8 +220,8 @@
           <div>
             <h3>Upload een afbeelding of ZIP</h3>
             <div class="drop" id="drop">
-              <p style="margin:0 0 10px">Sleep een PNG-, JPG-, SVG- of ZIP-bestand hierheen, of</p>
-              <button class="btn primary" type="button" id="setupPick">Afbeelding / ZIP kiezen</button>
+              <p style="margin:0 0 10px">Sleep een PNG-, JPG-, SVG-, HTML- of ZIP-bestand hierheen, of</p>
+              <button class="btn primary" type="button" id="setupPick">Afbeelding / HTML / ZIP kiezen</button>
             </div>
           </div>
         </div>
@@ -243,7 +244,7 @@
   <button class="reopen" id="reopen" aria-controls="viewer">Document</button>
 </main>
 
-<input type="file" id="imgFile" accept="image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg,.zip,application/zip" hidden>
+<input type="file" id="imgFile" accept="image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg,.html,.htm,.zip,application/zip,text/html" hidden>
 <input type="file" id="projFile" accept="application/json,.json,.zip,application/zip" hidden>
 
 <!-- Koppeling bewerken -->
@@ -284,7 +285,7 @@
     </label>
     <hr>
     <label>Delen met collega's
-      <span>ZIP is aanbevolen voor grote borden: afbeelding in originele kwaliteit plus koppelingen. Bestaande JSON-projecten blijven werken.</span>
+      <span>ZIP ondersteunt ook Microsoft Whiteboard HTML-exports: oorspronkelijke ingebedde onderdelen en koppelingen blijven in het HTML-bestand behouden. Bestaande JSON-projecten blijven werken.</span>
     </label>
     <div class="row">
       <button class="btn" type="button" id="setExport">Project exporteren (JSON)</button>
@@ -295,7 +296,7 @@
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.7</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.8</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -313,7 +314,7 @@
     <button class="btn" type="button" id="refOpenWb">Openen in Microsoft Whiteboard</button>
     <span class="spacer"></span>
     <button class="btn" type="button" id="refCancel">Annuleren</button>
-    <button class="btn primary" type="button" id="refPick">Afbeelding / ZIP kiezen</button>
+    <button class="btn primary" type="button" id="refPick">Afbeelding / HTML / ZIP kiezen</button>
   </div>
 </dialog>
 
@@ -390,7 +391,8 @@
 
   /* ---------------- Staat ---------------- */
   const st = { boards: [], cur: null, mode: "view", v: { x: 0, y: 0, s: 1 }, space: false, objUrl: null };
-  const stage = $("stage"), world = $("world"), img = $("boardImg");
+  const stage = $("stage"), world = $("world"), img = $("boardImg"), htmlFrame = $("boardHtml");
+  const hasBoard = b => !!(b && (b.image || b.htmlBoard));
   const save = () => st.cur && dbPut(st.cur);
 
   function newBoardObj(name) {
@@ -414,12 +416,12 @@
   }
 
   function renderStage() {
-    const b = st.cur, has = !!(b && b.image);
+    const b = st.cur, has = hasBoard(b);
     $("setup").hidden = has;
     world.hidden = !has;
     $("zoomBar").hidden = !has;
     $("refreshBtn").disabled = !has;
-    $("recognizeBtn").disabled = !has;
+    $("recognizeBtn").disabled = !has || !!b.htmlBoard;
     $("modeSeg").style.visibility = has ? "visible" : "hidden";
     if (!has) {
       setMode("view");
@@ -429,8 +431,15 @@
       return;
     }
     if (st.objUrl) URL.revokeObjectURL(st.objUrl);
-    st.objUrl = URL.createObjectURL(b.image);
-    img.src = st.objUrl;
+    st.objUrl = URL.createObjectURL(b.htmlBoard || b.image);
+    if (b.htmlBoard) {
+      img.hidden = true; img.removeAttribute("src"); htmlFrame.hidden = false;
+      htmlFrame.src = st.objUrl;
+      htmlFrame.style.width = b.imgW + "px";
+      htmlFrame.style.height = b.imgH + "px";
+    } else {
+      htmlFrame.hidden = true; htmlFrame.removeAttribute("src"); img.hidden = false; img.src = st.objUrl;
+    }
     world.style.width = b.imgW + "px";
     world.style.height = b.imgH + "px";
     renderHotspots();
@@ -456,7 +465,7 @@
       if (Math.abs(oldR - newR) / oldR > 0.02) toast("De nieuwe afbeelding heeft andere verhoudingen. Controleer of de gebieden nog goed staan.");
       else toast("Bord ververst. Je koppelingen zijn behouden.");
     }
-    b.image = file; b.imgW = size.w; b.imgH = size.h; b.updated = Date.now();
+    b.htmlBoard = null; b.image = file; b.imgW = size.w; b.imgH = size.h; b.updated = Date.now();
     await save();
     renderStage();
     recognize();
@@ -509,14 +518,14 @@
   $("zoomOut").addEventListener("click", () => zoomCenter(0.8));
   $("zoomFit").addEventListener("click", fit);
   stage.addEventListener("wheel", (e) => {
-    if (!st.cur || !st.cur.image) return;
+    if (!hasBoard(st.cur)) return;
     e.preventDefault();
     const r = stage.getBoundingClientRect();
     if (e.ctrlKey || !e.shiftKey && Math.abs(e.deltaY) >= Math.abs(e.deltaX) && !e.altKey) {
       zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
     } else { st.v.x -= e.deltaX || e.deltaY; applyView(); }
   }, { passive: false });
-  let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => st.cur && st.cur.image && fit(), 150); });
+  let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => hasBoard(st.cur) && fit(), 150); });
 
   /* ---------------- Documentgebieden ---------------- */
   function kindOf(url) {
@@ -551,7 +560,7 @@
       });
       world.appendChild(d);
     });
-    const none = b.hotspots.length === 0 && b.image && st.mode === "view";
+    const none = b.hotspots.length === 0 && hasBoard(b) && st.mode === "view";
     if (none && !renderHotspots.told) { renderHotspots.told = true; toast("Nog geen klikbare documenten. Kies Koppelingen bewerken om ze toe te voegen."); }
   }
 
@@ -576,7 +585,7 @@
     return { x: ((e.clientX - r.left) - v.x) / v.s / b.imgW, y: ((e.clientY - r.top) - v.y) / v.s / b.imgH };
   }
   stage.addEventListener("pointerdown", (e) => {
-    if (!st.cur || !st.cur.image || e.button > 0) return;
+    if (!hasBoard(st.cur) || e.button > 0) return;
     if (e.target.closest(".zoom") || e.target.closest(".setup")) return;
     const hsEl = e.target.closest(".hs"), p = toImg(e);
     const h = hsEl && st.cur.hotspots.find((x) => x.id === hsEl.dataset.id);
@@ -730,6 +739,7 @@
   }
   $("setExport").addEventListener("click", async () => {
     const b = st.cur;
+    if (b.htmlBoard) { toast("Gebruik Project exporteren (ZIP): JSON kan dit HTML-bord niet bewaren."); return; }
     const out = { format: "whiteboard-converter", version: 1, name: b.name, wbUrl: b.wbUrl, docFolder: b.docFolder || "", imgW: b.imgW, imgH: b.imgH,
                   hotspots: b.hotspots, image: b.image ? await blobToDataUrl(b.image) : null };
     const url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" }));
@@ -765,7 +775,35 @@
     }
     st.boards.push(nb); await dbPut(nb);
     $("setDialog").close(); selectBoard(nb.id);
-    toast("Project geïmporteerd met afbeelding en koppelingen.");
+    toast("Project geïmporteerd met bronbestand en koppelingen.");
+  }
+  // Microsoft Whiteboard exporteert soms één grote HTML met ingevoegde SVG/afbeeldingen.
+  // Bewaar die HTML ongewijzigd als Blob. Geen canvas-rasterisatie of JPEG-conversie.
+  function whiteboardViewport(html) {
+    const match = html.match(/class="transformComponent"[^>]*?transform:\s*translate\(([-\d.]+)px,\s*([-\d.]+)px\)/i);
+    // Whiteboard HTML export center translation indicates the original captured viewport.
+    const x = match ? Number(match[1]) : 960, y = match ? Number(match[2]) : 540;
+    return {w: Math.max(800, Math.min(7680, Math.round(x * 2))), h: Math.max(600, Math.min(4320, Math.round(y * 2)))};
+  }
+  async function importHtmlBoard(file, metadata = null, makeNew = false) {
+    const excerpt = await file.slice(0, 1500000).text();
+    if (!/<html[\s>]/i.test(excerpt) || !/canvasContent|transformComponent|whiteboard/i.test(excerpt))
+      throw new Error("Dit lijkt geen Microsoft Whiteboard HTML-export.");
+    const size = whiteboardViewport(excerpt);
+    const target = makeNew ? newBoardObj((metadata && metadata.name) || file.name.replace(/\.html?$/i, "")) : st.cur;
+    if (!target) throw new Error("Maak eerst een bord aan.");
+    target.image = null;
+    target.htmlBoard = new Blob([file], {type:"text/html"});
+    target.imgW = size.w; target.imgH = size.h; target.updated = Date.now();
+    if (metadata) {
+      target.wbUrl = metadata.wbUrl || target.wbUrl;
+      target.docFolder = metadata.docFolder || target.docFolder;
+      target.hotspots = Array.isArray(metadata.hotspots) ? metadata.hotspots : target.hotspots;
+      if (metadata.imgW && metadata.imgH) { target.imgW = metadata.imgW; target.imgH = metadata.imgH; }
+    }
+    if (makeNew) { st.boards.push(target); await dbPut(target); selectBoard(target.id); }
+    else { await save(); renderStage(); }
+    toast("Microsoft Whiteboard HTML geladen zonder kwaliteitsverlies door omzetting.");
   }
   async function parseZip(file, asProject) {
     if (!window.JSZip) throw new Error("ZIP-module ontbreekt. Controleer of jszip.min.js is geüpload.");
@@ -777,7 +815,15 @@
       d = JSON.parse(await info.async("string"));
       if (d.format !== "whiteboard-converter") throw new Error("Ongeldig project.json in ZIP.");
     }
-    if (asProject && !d) throw new Error("Geen project.json in deze ZIP. Importeer de ZIP via 'Afbeelding / ZIP kiezen' om een afbeelding te gebruiken.");
+    const htmlEntries = entries.filter(e => /\.html?$/i.test(e.name));
+    if (htmlEntries.length && (!d || d.htmlFile)) {
+      let picked = htmlEntries.find(e => d && d.htmlFile && e.name === d.htmlFile);
+      if (!picked && htmlEntries.length === 1) picked = htmlEntries[0];
+      if (!picked) throw new Error("Meerdere HTML-bestanden gevonden. Maak een ZIP met één Whiteboard HTML-export.");
+      const content = await picked.async("blob");
+      return {htmlBlob: new Blob([content], {type:"text/html"}), fileName: picked.name, d};
+    }
+    if (asProject && !d) throw new Error("Geen project.json gevonden. Kies een ZIP met afbeelding of Whiteboard HTML via het uploadvak.");
     const imageEntries = entries.filter(e => isImageFile(e.name));
     let chosen = null;
     if (d && d.imageFile) {
@@ -802,11 +848,17 @@
     return { d, blob: new Blob([bytes], {type: mimeFor(chosen.name)}), fileName: chosen.name };
   }
   async function importBoardFile(f) {
+    if (/\.html?$/i.test(f.name)) {
+      try { await importHtmlBoard(f, null, false); } catch(e) {toast("HTML-import mislukt: " + e.message);}
+      return;
+    }
     if (!isZipFile(f.name)) return importImage(f);
     try {
       const result = await parseZip(f, false);
       if (!result) return;
-      if (result.d) {
+      if (result.htmlBlob) {
+        await importHtmlBoard(result.htmlBlob, result.d || null, !!result.d);
+      } else if (result.d) {
         await addImportedBoard(makeImportedBoard(result.d, result.blob));
       } else {
         // An image-only ZIP replaces the current board, preserving existing hotspots.
@@ -820,12 +872,14 @@
       const b = st.cur, zip = new JSZip();
       const ext = b.image && /svg/.test(b.image.type) ? "svg" : b.image && /jpe?g/.test(b.image.type) ? "jpg" : "png";
       const imageFile = b.image ? "images/whiteboard." + ext : null;
+      const htmlFile = b.htmlBoard ? "whiteboard/export.html" : null;
       zip.file("project.json", JSON.stringify({format:"whiteboard-converter",version:2,name:b.name,
-        wbUrl:b.wbUrl,docFolder:b.docFolder||"",imgW:b.imgW,imgH:b.imgH,hotspots:b.hotspots,imageFile},null,2));
+        wbUrl:b.wbUrl,docFolder:b.docFolder||"",imgW:b.imgW,imgH:b.imgH,hotspots:b.hotspots,imageFile,htmlFile},null,2));
       if (b.image) zip.file(imageFile, b.image); // byte-for-byte original, no canvas conversion
+      if (b.htmlBoard) zip.file(htmlFile, b.htmlBoard); // original HTML with embedded vector art and images
       const blob = await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:3}});
       downloadBlob(blob, safeFilename(b.name) + ".whiteboard.zip");
-      toast("ZIP-project geëxporteerd zonder afbeelding opnieuw te comprimeren.");
+      toast("ZIP-project geëxporteerd met ongewijzigde bronbestanden.");
     } catch (err) { toast("ZIP-export mislukt: " + (err.message || "onbekende fout")); }
   });
   $("setImport").addEventListener("click", () => $("projFile").click());
@@ -836,6 +890,10 @@
       if (isZipFile(f.name)) {
         const result = await parseZip(f, true);
         if (!result) return;
+        if (result.htmlBlob) {
+          await importHtmlBoard(result.htmlBlob, result.d || null, true);
+          return;
+        }
         nb = makeImportedBoard(result.d, result.blob);
       } else {
         const d = JSON.parse(await f.text());
@@ -1039,7 +1097,9 @@
   $("recognizeBtn").addEventListener("click", () => recognize());
 
   async function recognize() {
-    const b = st.cur; if (!b || !b.image) return;
+    const b = st.cur;
+    if (b && b.htmlBoard) { toast("Automatische OCR is alleen beschikbaar voor PNG/JPG/SVG. HTML-borden kun je handmatig van documentgebieden voorzien."); return; }
+    if (!b || !b.image) return;
     const dlg = $("ocrDialog"), status = $("ocrStatus"), bar = $("ocrBar");
     let cancelled = false, worker = null;
     ocrCancel = () => { cancelled = true; try { worker && worker.terminate(); } catch (e) {} dlg.close(); };
