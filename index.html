@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard Converter 1.7</title>
+<title>Whiteboard + Document 2.0</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
 <script src="jszip.min.js"></script>
 <style>
@@ -94,7 +94,9 @@
 
   .zoom { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 4px; background: var(--surface);
           border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
-  .zoom span { min-width: 48px; text-align: center; align-self: center; color: var(--muted); font-size: 12px; }
+   .zoom span { min-width: 55px; text-align: center; align-self: center; color: var(--text); font-size: 13px; font-weight: 700; }
+  .zoom select { min-width: 105px; max-width: 118px; padding: 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); }
+  .zoom { z-index: 10; flex-wrap: wrap; max-width: calc(100% - 24px); box-shadow: 0 2px 8px #0002; }
 
   /* Lege staat en importstappen */
   .setup { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto; }
@@ -184,8 +186,18 @@
     <div class="world" id="world"><img id="boardImg" alt="Geëxporteerd whiteboard"><iframe id="boardHtml" class="html-board" title="Origineel Microsoft Whiteboard HTML" sandbox="" referrerpolicy="no-referrer" hidden></iframe></div>
     <div class="zoom" id="zoomBar" hidden>
       <button class="btn icon" id="zoomOut" aria-label="Uitzoomen">−</button>
-      <span id="zoomLabel">100%</span>
+      <span id="zoomLabel" aria-live="polite" title="Huidige zoomstand">100%</span>
       <button class="btn icon" id="zoomIn" aria-label="Inzoomen">+</button>
+      <select id="zoomPreset" aria-label="Zoompercentage kiezen" title="Kies een zoompercentage">
+        <option value="">Zoom kiezen</option>
+        <option value="0.25">25%</option><option value="0.5">50%</option>
+        <option value="0.75">75%</option><option value="1">100%</option>
+        <option value="1.5">150%</option><option value="2">200%</option>
+        <option value="3">300%</option><option value="4">400%</option>
+        <option value="8">800%</option><option value="16">1600%</option>
+        <option value="32">3200%</option><option value="64">6400%</option>
+      </select>
+      <button class="btn" id="zoomActual" title="Toon op oorspronkelijke afbeeldingsgrootte">100%</button>
       <button class="btn" id="zoomFit">Passend</button>
     </div>
 
@@ -494,26 +506,37 @@
   });
 
   /* ---------------- Zoomen en verschuiven ---------------- */
+  const ZOOM_MIN = 0.02, ZOOM_MAX = 64;
   function applyView() {
     const v = st.v;
     world.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
     world.style.setProperty("--s", v.s);
     $("zoomLabel").textContent = Math.round(v.s * 100) + "%";
+    const preset = $("zoomPreset");
+    preset.value = [...preset.options].some(o => o.value && Math.abs(Number(o.value) - v.s) < 0.00001) ? String(v.s) : "";
   }
   function fit() {
     const b = st.cur; if (!b || !b.imgW) return;
     const r = stage.getBoundingClientRect();
     const s = Math.min((r.width - 48) / b.imgW, (r.height - 48) / b.imgH);
-    st.v.s = clamp(s, 0.02, 16);
+    st.v.s = clamp(s, ZOOM_MIN, ZOOM_MAX);
     st.v.x = (r.width - b.imgW * st.v.s) / 2;
     st.v.y = (r.height - b.imgH * st.v.s) / 2;
     applyView();
   }
   function zoomAt(mx, my, factor) {
-    const v = st.v, ns = clamp(v.s * factor, 0.02, 16), k = ns / v.s;
+    const v = st.v, ns = clamp(v.s * factor, ZOOM_MIN, ZOOM_MAX), k = ns / v.s;
     v.x = mx - (mx - v.x) * k; v.y = my - (my - v.y) * k; v.s = ns; applyView();
   }
   function zoomCenter(f) { const r = stage.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); }
+  function setZoomPercent(pct) {
+    if (!hasBoard(st.cur) || !Number.isFinite(pct) || pct <= 0) return;
+    zoomCenter(clamp(pct / 100, ZOOM_MIN, ZOOM_MAX) / st.v.s);
+  }
+  $("zoomPreset").addEventListener("change", e => {
+    if (e.target.value) setZoomPercent(Number(e.target.value) * 100);
+  });
+  $("zoomActual").addEventListener("click", () => setZoomPercent(100));
   $("zoomIn").addEventListener("click", () => zoomCenter(1.25));
   $("zoomOut").addEventListener("click", () => zoomCenter(0.8));
   $("zoomFit").addEventListener("click", fit);
