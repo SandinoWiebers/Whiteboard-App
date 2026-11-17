@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard + Document 2.0</title>
+<title>Whiteboard + Document 2.3</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
 <script src="jszip.min.js"></script>
 <style>
@@ -322,7 +322,7 @@
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 2.1</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 2.3</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -850,19 +850,20 @@
     const x = match ? Number(match[1]) : 960, y = match ? Number(match[2]) : 540;
     return {w: Math.max(800, Math.min(7680, Math.round(x * 2))), h: Math.max(600, Math.min(4320, Math.round(y * 2)))};
   }
-  // Microsoft Whiteboard bewaart losse tekstlabels als auto-width tekstvakken.
-  // De iframe-renderer kan die ten onrechte afbreken door een afwijkende CSS/fontmeting.
-  // Corrigeer ALLEEN auto-width plain-text labels, niet sticky notes of handmatig
-  // begrensde tekstvakken: die moeten hun originele regelafbreking behouden.
+  // De Whiteboard-export bevat bewust regelafbrekende alinea's. In versie 2.2
+  // werd white-space: nowrap ten onrechte op ALLE plainText-tekstregels toegepast.
+  // Dat maakte lange alinea's overbreed en veroorzaakte overlapping met tabellen.
+  // Laat de originele pre-wrap en overflow-wrap van Microsoft intact.
+  // Alleen voor de kleine, losse kopteksten (400px/68px) geven we iets meer
+  // breedte, zodat woorden zoals 'Activiteiten' niet op de laatste letter breken.
   function repairWhiteboardTextLayout(html) {
-    const css = `<style id="wb-plain-text-layout-fix">
-      .textbox.plainText[style*="width: max-content"] .public-DraftStyleDefault-block {
-        white-space: nowrap !important;
-        overflow-wrap: normal !important;
-        word-break: normal !important;
+    // Compatibiliteit met een eventueel eerder in de app opgeslagen HTML-bestand.
+    html = html.replace(/<style\s+id=["']wb-plain-text-layout-fix["'][^>]*>[\s\S]*?<\/style>/gi, "");
+    const css = `<style id="wb-heading-width-fix">
+      .textbox.plainText[style*="max-width: 400px"][style*="font-size: 68px"] {
+        max-width: 520px !important;
       }
     </style>`;
-    // Inserteer in de head; sla de originele markup en inhoud verder intact op.
     return /<\/head\s*>/i.test(html)
       ? html.replace(/<\/head\s*>/i, css + "</head>")
       : css + html;
@@ -885,7 +886,7 @@
     }
     if (makeNew) { st.boards.push(target); await dbPut(target); selectBoard(target.id); }
     else { await save(); renderStage(); }
-    toast("Microsoft Whiteboard HTML geladen zonder kwaliteitsverlies door omzetting.");
+    toast("Microsoft Whiteboard HTML geladen met behoud van originele regelafbreking.");
   }
   async function parseZip(file, asProject) {
     if (!window.JSZip) throw new Error("ZIP-module ontbreekt. Controleer of jszip.min.js is geüpload.");
