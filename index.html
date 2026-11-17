@@ -98,6 +98,15 @@
   .zoom select { min-width: 105px; max-width: 118px; padding: 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); }
   .zoom { z-index: 10; flex-wrap: wrap; max-width: calc(100% - 24px); box-shadow: 0 2px 8px #0002; }
 
+  /* Navigatieknoppen: blijven op scherm en bewegen de camera */
+  .navpad { position:absolute; right:14px; bottom:14px; z-index:12; display:grid;
+            grid-template-columns:repeat(3,34px); grid-template-rows:repeat(3,34px); gap:3px;
+            border-radius:8px; padding:5px; background:var(--surface); box-shadow:0 2px 8px #0002; }
+  .navpad button { width:34px; height:34px; border:1px solid var(--line); border-radius:5px;
+                   background:var(--surface); cursor:pointer; font-size:17px; }
+  .navpad button:hover { background:var(--bg); }
+  .navpad .nav-center {font-size:13px; cursor:default; border:0;}
+  @media(max-width:700px) { .navpad {right:8px; bottom:65px;} }
   /* Lege staat en importstappen */
   .setup { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: auto; }
   .setup .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 24px;
@@ -199,6 +208,11 @@
       </select>
       <button class="btn" id="zoomActual" title="Toon op oorspronkelijke afbeeldingsgrootte">100%</button>
       <button class="btn" id="zoomFit">Passend</button>
+    </div>
+    <div class="navpad" id="navPad" hidden aria-label="Bord navigeren">
+      <span></span><button id="panUp" aria-label="Omhoog navigeren" title="Omhoog">↑</button><span></span>
+      <button id="panLeft" aria-label="Links navigeren" title="Links">←</button><span class="nav-center" title="Sleep het bord met je muis">✥</span><button id="panRight" aria-label="Rechts navigeren" title="Rechts">→</button>
+      <span></span><button id="panDown" aria-label="Omlaag navigeren" title="Omlaag">↓</button><span></span>
     </div>
 
     <div class="setup" id="setup" hidden>
@@ -308,7 +322,7 @@
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 1.8</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 2.1</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -432,6 +446,7 @@
     $("setup").hidden = has;
     world.hidden = !has;
     $("zoomBar").hidden = !has;
+    $("navPad").hidden = !has;
     $("refreshBtn").disabled = !has;
     $("recognizeBtn").disabled = !has || !!b.htmlBoard;
     $("modeSeg").style.visibility = has ? "visible" : "hidden";
@@ -540,14 +555,41 @@
   $("zoomIn").addEventListener("click", () => zoomCenter(1.25));
   $("zoomOut").addEventListener("click", () => zoomCenter(0.8));
   $("zoomFit").addEventListener("click", fit);
+  /* Gewoon scrollen = over het bord bewegen. Ctrl + scroll = zoom onder de muis.
+     Shift + scroll = horizontaal navigeren. Touchpad ondersteunt beide assen. */
   stage.addEventListener("wheel", (e) => {
-    if (!hasBoard(st.cur)) return;
+    if (!hasBoard(st.cur) || e.target.closest(".zoom") || e.target.closest(".navpad")) return;
     e.preventDefault();
-    const r = stage.getBoundingClientRect();
-    if (e.ctrlKey || !e.shiftKey && Math.abs(e.deltaY) >= Math.abs(e.deltaX) && !e.altKey) {
-      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
-    } else { st.v.x -= e.deltaX || e.deltaY; applyView(); }
+    const multiplier = e.deltaMode === 1 ? 18 : e.deltaMode === 2 ? stage.clientHeight : 1;
+    const dx = e.deltaX * multiplier, dy = e.deltaY * multiplier;
+    if (e.ctrlKey || e.metaKey) {
+      const r = stage.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-dy * 0.0015));
+    } else if (e.shiftKey) {
+      st.v.x -= dx || dy;
+      applyView();
+    } else {
+      st.v.x -= dx; st.v.y -= dy;
+      applyView();
+    }
   }, { passive: false });
+  const panStep = () => Math.max(80, Math.round(Math.min(stage.clientWidth, stage.clientHeight) * 0.35));
+  [["panUp",0,1],["panDown",0,-1],["panLeft",1,0],["panRight",-1,0]].forEach(([id,dx,dy]) => {
+    $(id).addEventListener("click", () => {
+      if (!hasBoard(st.cur)) return;
+      st.v.x += dx * panStep(); st.v.y += dy * panStep(); applyView();
+    });
+  });
+  stage.setAttribute("tabindex", "0");
+  stage.addEventListener("keydown", (e) => {
+    if (!hasBoard(st.cur) || st.mode !== "view" || e.altKey || e.ctrlKey || e.metaKey) return;
+    const directions = {ArrowUp:[0,1], ArrowDown:[0,-1], ArrowLeft:[1,0], ArrowRight:[-1,0]};
+    if (!directions[e.key]) return;
+    e.preventDefault();
+    const [dx,dy] = directions[e.key];
+    const step = e.shiftKey ? panStep() * 2 : panStep();
+    st.v.x += dx * step; st.v.y += dy * step; applyView();
+  });
   let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => hasBoard(st.cur) && fit(), 150); });
 
   /* ---------------- Documentgebieden ---------------- */
@@ -808,6 +850,23 @@
     const x = match ? Number(match[1]) : 960, y = match ? Number(match[2]) : 540;
     return {w: Math.max(800, Math.min(7680, Math.round(x * 2))), h: Math.max(600, Math.min(4320, Math.round(y * 2)))};
   }
+  // Microsoft Whiteboard bewaart losse tekstlabels als auto-width tekstvakken.
+  // De iframe-renderer kan die ten onrechte afbreken door een afwijkende CSS/fontmeting.
+  // Corrigeer ALLEEN auto-width plain-text labels, niet sticky notes of handmatig
+  // begrensde tekstvakken: die moeten hun originele regelafbreking behouden.
+  function repairWhiteboardTextLayout(html) {
+    const css = `<style id="wb-plain-text-layout-fix">
+      .textbox.plainText[style*="width: max-content"] .public-DraftStyleDefault-block {
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+        word-break: normal !important;
+      }
+    </style>`;
+    // Inserteer in de head; sla de originele markup en inhoud verder intact op.
+    return /<\/head\s*>/i.test(html)
+      ? html.replace(/<\/head\s*>/i, css + "</head>")
+      : css + html;
+  }
   async function importHtmlBoard(file, metadata = null, makeNew = false) {
     const excerpt = await file.slice(0, 1500000).text();
     if (!/<html[\s>]/i.test(excerpt) || !/canvasContent|transformComponent|whiteboard/i.test(excerpt))
@@ -816,7 +875,7 @@
     const target = makeNew ? newBoardObj((metadata && metadata.name) || file.name.replace(/\.html?$/i, "")) : st.cur;
     if (!target) throw new Error("Maak eerst een bord aan.");
     target.image = null;
-    target.htmlBoard = new Blob([file], {type:"text/html"});
+    target.htmlBoard = new Blob([repairWhiteboardTextLayout(await file.text())], {type:"text/html"});
     target.imgW = size.w; target.imgH = size.h; target.updated = Date.now();
     if (metadata) {
       target.wbUrl = metadata.wbUrl || target.wbUrl;
