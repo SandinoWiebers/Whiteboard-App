@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whiteboard + Document 2.3</title>
+<title>Whiteboard + Document 2.4</title>
 <script src="https://res.cdn.office.net/teams-js/2.24.0/js/MicrosoftTeams.min.js"></script>
 <script src="jszip.min.js"></script>
 <style>
@@ -68,7 +68,7 @@
   .stage.edit { cursor: crosshair; }
   .stage.panning, .stage.space { cursor: grabbing; }
   .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --s: 1; }
-  .world iframe.html-board { display:block; border:0; background:#fff; pointer-events:none; user-select:none; }
+  .world iframe.html-board { display:block; border:0; background:#fff; pointer-events:none; user-select:none; overflow:hidden; }
   .world img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-drag: none;
                box-shadow: 0 0 0 1px var(--line); background: #fff; }
 
@@ -94,7 +94,7 @@
 
   .zoom { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 4px; background: var(--surface);
           border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
-   .zoom span { min-width: 55px; text-align: center; align-self: center; color: var(--text); font-size: 13px; font-weight: 700; }
+  .zoom span { min-width: 55px; text-align: center; align-self: center; color: var(--text); font-size: 13px; font-weight: 700; }
   .zoom select { min-width: 105px; max-width: 118px; padding: 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); }
   .zoom { z-index: 10; flex-wrap: wrap; max-width: calc(100% - 24px); box-shadow: 0 2px 8px #0002; }
 
@@ -192,7 +192,7 @@
 
 <main class="workspace" id="workspace">
   <section class="stage" id="stage" aria-label="Whiteboard">
-    <div class="world" id="world"><img id="boardImg" alt="Geëxporteerd whiteboard"><iframe id="boardHtml" class="html-board" title="Origineel Microsoft Whiteboard HTML" sandbox="" referrerpolicy="no-referrer" hidden></iframe></div>
+    <div class="world" id="world"><img id="boardImg" alt="Geëxporteerd whiteboard"><iframe id="boardHtml" class="html-board" title="Origineel Microsoft Whiteboard HTML" sandbox="allow-same-origin" scrolling="no" referrerpolicy="no-referrer" hidden></iframe></div>
     <div class="zoom" id="zoomBar" hidden>
       <button class="btn icon" id="zoomOut" aria-label="Uitzoomen">−</button>
       <span id="zoomLabel" aria-live="polite" title="Huidige zoomstand">100%</span>
@@ -311,7 +311,7 @@
     </label>
     <hr>
     <label>Delen met collega's
-      <span>ZIP ondersteunt ook Microsoft Whiteboard HTML-exports: oorspronkelijke ingebedde onderdelen en koppelingen blijven in het HTML-bestand behouden. Bestaande JSON-projecten blijven werken.</span>
+      <span>ZIP ondersteunt ook Microsoft Whiteboard HTML-exports: lettertypen, stijlen en afbeeldingen uit de ZIP worden in het bord opgenomen. Bestaande JSON-projecten blijven werken.</span>
     </label>
     <div class="row">
       <button class="btn" type="button" id="setExport">Project exporteren (JSON)</button>
@@ -322,7 +322,7 @@
     <div class="row"><button class="btn danger" type="button" id="setDelete">Bord verwijderen</button></div>
   </div>
   <div class="d-foot">
-    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 2.3</span>
+    <span style="align-self:center;color:var(--muted);font-size:12px">Versie 2.4</span>
     <span class="spacer"></span>
     <button class="btn" type="button" id="setCancel">Annuleren</button>
     <button class="btn primary" type="button" id="setSave">Opslaan</button>
@@ -843,37 +843,62 @@
     toast("Project geïmporteerd met bronbestand en koppelingen.");
   }
   // Microsoft Whiteboard exporteert soms één grote HTML met ingevoegde SVG/afbeeldingen.
-  // Bewaar die HTML ongewijzigd als Blob. Geen canvas-rasterisatie of JPEG-conversie.
+  // Bewaar die HTML als Blob. Geen canvas-rasterisatie of JPEG-conversie.
   function whiteboardViewport(html) {
     const match = html.match(/class="transformComponent"[^>]*?transform:\s*translate\(([-\d.]+)px,\s*([-\d.]+)px\)/i);
     // Whiteboard HTML export center translation indicates the original captured viewport.
     const x = match ? Number(match[1]) : 960, y = match ? Number(match[2]) : 540;
     return {w: Math.max(800, Math.min(7680, Math.round(x * 2))), h: Math.max(600, Math.min(4320, Math.round(y * 2)))};
   }
-  // De Whiteboard-export bevat bewust regelafbrekende alinea's. In versie 2.2
-  // werd white-space: nowrap ten onrechte op ALLE plainText-tekstregels toegepast.
-  // Dat maakte lange alinea's overbreed en veroorzaakte overlapping met tabellen.
-  // Laat de originele pre-wrap en overflow-wrap van Microsoft intact.
-  // Alleen voor de kleine, losse kopteksten (400px/68px) geven we iets meer
-  // breedte, zodat woorden zoals 'Activiteiten' niet op de laatste letter breken.
+  // Versie 2.4: geen eigen aanpassingen meer aan de tekstopmaak van Microsoft.
+  // Oude correcties uit 2.2/2.3 worden verwijderd. Alleen schuifbalken worden
+  // uitgezet, omdat die de beschikbare breedte veranderen en tekst laten verspringen.
   function repairWhiteboardTextLayout(html) {
-    // Compatibiliteit met een eventueel eerder in de app opgeslagen HTML-bestand.
-    html = html.replace(/<style\s+id=["']wb-plain-text-layout-fix["'][^>]*>[\s\S]*?<\/style>/gi, "");
-    const css = `<style id="wb-heading-width-fix">
-      .textbox.plainText[style*="max-width: 400px"][style*="font-size: 68px"] {
-        max-width: 520px !important;
-      }
-    </style>`;
+    html = html.replace(/<style\s+id=["']wb-(?:plain-text-layout|heading-width|viewport)-fix["'][^>]*>[\s\S]*?<\/style>/gi, "");
+    const css = `<style id="wb-viewport-fix">html,body{overflow:hidden!important;margin:0}</style>`;
     return /<\/head\s*>/i.test(html)
       ? html.replace(/<\/head\s*>/i, css + "</head>")
       : css + html;
+  }
+  // Lettertypen, stijlen en afbeeldingen die naast de HTML in de ZIP staan, worden als
+  // data-URL in de HTML opgenomen. Anders kan de browser ze niet vinden en valt hij
+  // terug op een ander lettertype, waardoor tekst anders afbreekt en verschuift.
+  const ASSET_MIME = { woff2:"font/woff2", woff:"font/woff", ttf:"font/ttf", otf:"font/otf", eot:"application/vnd.ms-fontobject",
+    css:"text/css", png:"image/png", jpg:"image/jpeg", jpeg:"image/jpeg", gif:"image/gif", svg:"image/svg+xml", webp:"image/webp" };
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  function utf8ToBase64(text) {
+    const bytes = new TextEncoder().encode(text); let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  async function inlineZipAssets(text, entries, ownName, depth = 0) {
+    const dir = ownName.includes("/") ? ownName.slice(0, ownName.lastIndexOf("/") + 1) : "";
+    for (const e of entries) {
+      const ext = (e.name.split(".").pop() || "").toLowerCase();
+      if (!ASSET_MIME[ext] || e.name === ownName) continue;
+      const rel = e.name.startsWith(dir) ? e.name.slice(dir.length) : e.name;
+      const alts = [...new Set([rel, encodeURI(rel), e.name, encodeURI(e.name)])].map(escRe).join("|");
+      const re = new RegExp(`(["'(=]\\s*)(?:\\./|/)?(?:${alts})(?=\\s*["')?#])`, "g");
+      if (!re.test(text)) continue;
+      re.lastIndex = 0;
+      let dataUrl;
+      if (ext === "css" && depth < 3) {
+        const css = await inlineZipAssets(await e.async("string"), entries, e.name, depth + 1);
+        dataUrl = `data:text/css;base64,${utf8ToBase64(css)}`;
+      } else {
+        dataUrl = `data:${ASSET_MIME[ext]};base64,${await e.async("base64")}`;
+      }
+      text = text.replace(re, (_, q) => q + dataUrl);
+    }
+    return text;
   }
   async function importHtmlBoard(file, metadata = null, makeNew = false) {
     const excerpt = await file.slice(0, 1500000).text();
     if (!/<html[\s>]/i.test(excerpt) || !/canvasContent|transformComponent|whiteboard/i.test(excerpt))
       throw new Error("Dit lijkt geen Microsoft Whiteboard HTML-export.");
     const size = whiteboardViewport(excerpt);
-    const target = makeNew ? newBoardObj((metadata && metadata.name) || file.name.replace(/\.html?$/i, "")) : st.cur;
+    const baseName = (metadata && metadata.name) || String(file.name || "Whiteboard").replace(/\.html?$/i, "") || "Whiteboard";
+    const target = makeNew ? newBoardObj(baseName) : st.cur;
     if (!target) throw new Error("Maak eerst een bord aan.");
     target.image = null;
     target.htmlBoard = new Blob([repairWhiteboardTextLayout(await file.text())], {type:"text/html"});
@@ -886,7 +911,7 @@
     }
     if (makeNew) { st.boards.push(target); await dbPut(target); selectBoard(target.id); }
     else { await save(); renderStage(); }
-    toast("Microsoft Whiteboard HTML geladen met behoud van originele regelafbreking.");
+    toast("Microsoft Whiteboard HTML geladen met originele opmaak en lettertypen.");
   }
   async function parseZip(file, asProject) {
     if (!window.JSZip) throw new Error("ZIP-module ontbreekt. Controleer of jszip.min.js is geüpload.");
@@ -903,8 +928,8 @@
       let picked = htmlEntries.find(e => d && d.htmlFile && e.name === d.htmlFile);
       if (!picked && htmlEntries.length === 1) picked = htmlEntries[0];
       if (!picked) throw new Error("Meerdere HTML-bestanden gevonden. Maak een ZIP met één Whiteboard HTML-export.");
-      const content = await picked.async("blob");
-      return {htmlBlob: new Blob([content], {type:"text/html"}), fileName: picked.name, d};
+      const text = await inlineZipAssets(await picked.async("string"), entries, picked.name);
+      return {htmlBlob: new Blob([text], {type:"text/html"}), fileName: picked.name, d};
     }
     if (asProject && !d) throw new Error("Geen project.json gevonden. Kies een ZIP met afbeelding of Whiteboard HTML via het uploadvak.");
     const imageEntries = entries.filter(e => isImageFile(e.name));
@@ -959,10 +984,10 @@
       zip.file("project.json", JSON.stringify({format:"whiteboard-converter",version:2,name:b.name,
         wbUrl:b.wbUrl,docFolder:b.docFolder||"",imgW:b.imgW,imgH:b.imgH,hotspots:b.hotspots,imageFile,htmlFile},null,2));
       if (b.image) zip.file(imageFile, b.image); // byte-for-byte original, no canvas conversion
-      if (b.htmlBoard) zip.file(htmlFile, b.htmlBoard); // original HTML with embedded vector art and images
+      if (b.htmlBoard) zip.file(htmlFile, b.htmlBoard); // HTML with embedded fonts, styles and images
       const blob = await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:3}});
       downloadBlob(blob, safeFilename(b.name) + ".whiteboard.zip");
-      toast("ZIP-project geëxporteerd met ongewijzigde bronbestanden.");
+      toast("ZIP-project geëxporteerd met bronbestanden.");
     } catch (err) { toast("ZIP-export mislukt: " + (err.message || "onbekende fout")); }
   });
   $("setImport").addEventListener("click", () => $("projFile").click());
